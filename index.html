@@ -1,589 +1,272 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aztec Temple • 3D Model Viewer</title>
-    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap');
-        
-        :root {
-            --bg: #0f1f1c;
-            --card: #1a2e28;
-            --accent: #e8b923;
-            --gold-glow: #f5d16a;
-            --jade: #00a86b;
-            --blood: #9b2a1f;
-            --text: #f0e6d2;
-            --muted: #a89f7f;
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(180deg, var(--bg) 0%, #0a1814 100%);
-            color: var(--text);
-            min-height: 100vh;
-            overflow-x: hidden;
-            position: relative;
-        }
-        
-        /* Aztec-inspired background pattern */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: 
-                radial-gradient(circle at 25% 25%, rgba(232, 185, 35, 0.08) 1px, transparent 0),
-                radial-gradient(circle at 75% 75%, rgba(232, 185, 35, 0.08) 1px, transparent 0);
-            background-size: 80px 80px;
-            pointer-events: none;
-            z-index: -1;
-            opacity: 0.6;
-            mix-blend-mode: overlay;
-        }
-        
-        header {
-            background: rgba(10, 24, 20, 0.95);
-            backdrop-filter: blur(12px);
-            border-bottom: 3px solid var(--accent);
-            padding: 1.5rem 2.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 1rem;
-            box-shadow: 0 8px 30px -10px var(--gold-glow);
-        }
-        
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            font-size: 1.85rem;
-            font-weight: 700;
-            letter-spacing: -1px;
-            text-transform: uppercase;
-            background: linear-gradient(90deg, var(--accent), #f5d16a);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        .logo::before {
-            content: '☀️';
-            font-size: 2rem;
-            filter: drop-shadow(0 0 8px var(--gold-glow));
-        }
-        
-        .repo-badge {
-            background: rgba(232, 185, 35, 0.12);
-            color: var(--accent);
-            font-size: 0.9rem;
-            padding: 8px 20px;
-            border-radius: 9999px;
-            font-weight: 600;
-            border: 2px solid var(--accent);
-            box-shadow: 0 0 20px rgba(232, 185, 35, 0.3);
-        }
-        
-        .controls {
-            display: flex;
-            align-items: center;
-            gap: 18px;
-            flex-wrap: wrap;
-            background: var(--card);
-            padding: 16px 28px;
-            border-radius: 18px;
-            box-shadow: 0 25px 30px -12px rgba(232, 185, 35, 0.25),
-                        0 10px 15px -6px rgba(232, 185, 35, 0.2);
-        }
-        
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        
-        .input-group label {
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: var(--muted);
-        }
-        
-        .input-group input,
-        .input-group select {
-            background: #0a1814;
-            border: 3px solid #2f4a44;
-            border-radius: 14px;
-            padding: 12px 18px;
-            color: var(--text);
-            font-size: 1.05rem;
-            width: 200px;
-            outline: none;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .input-group input:focus,
-        .input-group select:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 5px rgba(232, 185, 35, 0.3);
-        }
-        
-        button {
-            background: linear-gradient(90deg, var(--accent), #f5d16a);
-            color: #0a1814;
-            border: none;
-            border-radius: 14px;
-            padding: 14px 32px;
-            font-weight: 700;
-            font-size: 1.05rem;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 12px 20px -6px rgba(232, 185, 35, 0.5);
-        }
-        
-        button:hover {
-            transform: translateY(-4px) scale(1.05);
-            box-shadow: 0 20px 30px -8px rgba(232, 185, 35, 0.7);
-        }
-        
-        button.secondary {
-            background: #2f4a44;
-            color: var(--text);
-        }
-        
-        button.secondary:hover {
-            background: #3f5e57;
-            box-shadow: 0 0 20px rgba(232, 185, 35, 0.4);
-        }
-        
-        main {
-            display: flex;
-            gap: 32px;
-            padding: 3rem 2.5rem;
-            max-width: 1700px;
-            margin: 0 auto;
-        }
-        
-        .sidebar {
-            width: 340px;
-            background: var(--card);
-            border-radius: 22px;
-            padding: 28px;
-            box-shadow: 0 35px 70px -18px rgba(232, 185, 35, 0.35),
-                        inset 0 3px 0 rgba(245, 209, 106, 0.15);
-            display: flex;
-            flex-direction: column;
-            height: fit-content;
-            position: relative;
-        }
-        
-        .sidebar::before {
-            content: '';
-            position: absolute;
-            inset: -4px;
-            background: linear-gradient(45deg, transparent, var(--accent), transparent);
-            border-radius: 26px;
-            z-index: -1;
-            opacity: 0.25;
-            filter: blur(12px);
-        }
-        
-        .sidebar h2 {
-            font-size: 1.35rem;
-            margin-bottom: 22px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: var(--accent);
-            display: flex;
-            align-items: center;
-        }
-        
-        .model-list {
-            list-style: none;
-            max-height: 540px;
-            overflow-y: auto;
-            background: #0a1814;
-            border-radius: 18px;
-            padding: 10px;
-            border: 2px solid #2f4a44;
-        }
-        
-        .model-list li {
-            padding: 18px 22px;
-            margin-bottom: 8px;
-            border-radius: 14px;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            font-size: 1.1rem;
-            color: var(--text);
-        }
-        
-        .model-list li:hover {
-            background: #2f4a44;
-            transform: translateX(6px);
-        }
-        
-        .model-list li.active {
-            background: linear-gradient(90deg, var(--accent), #f5d16a);
-            color: #0a1814;
-            font-weight: 700;
-            box-shadow: 0 0 25px rgba(232, 185, 35, 0.6);
-        }
-        
-        .viewer-container {
-            flex: 1;
-            background: #0a1814;
-            border-radius: 26px;
-            padding: 24px;
-            box-shadow: 0 35px 70px -18px rgba(232, 185, 35, 0.35),
-                        0 0 0 3px rgba(232, 185, 35, 0.15) inset;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .viewer-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding: 0 16px;
-        }
-        
-        .current-model {
-            font-size: 1.35rem;
-            font-weight: 700;
-            color: var(--accent);
-            letter-spacing: -0.5px;
-        }
-        
-        model-viewer {
-            width: 100%;
-            height: 660px;
-            border-radius: 22px;
-            background: radial-gradient(circle at 50% 25%, #2f4a44 0%, #0a1814 75%);
-            box-shadow: 
-                0 0 70px -15px rgba(232, 185, 35, 0.6),
-                inset 0 0 90px rgba(232, 185, 35, 0.25);
-            transition: box-shadow 0.5s ease;
-        }
-        
-        model-viewer:hover {
-            box-shadow: 
-                0 0 90px -15px rgba(232, 185, 35, 0.8),
-                inset 0 0 110px rgba(232, 185, 35, 0.35);
-        }
-        
-        .info {
-            margin-top: 24px;
-            font-size: 1rem;
-            color: var(--muted);
-            display: flex;
-            align-items: center;
-            gap: 28px;
-            flex-wrap: wrap;
-            padding: 0 16px;
-        }
-        
-        .info-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        footer {
-            text-align: center;
-            padding: 3rem 2.5rem;
-            color: var(--muted);
-            font-size: 1rem;
-            border-top: 2px solid #2f4a44;
-            background: rgba(10, 24, 20, 0.7);
-        }
-        
-        .loading {
-            animation: temple-pulse 2s infinite ease-in-out;
-        }
-        
-        @keyframes temple-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.35; }
-        }
-        
-        @media (max-width: 1024px) {
-            main {
-                flex-direction: column;
-            }
-            .sidebar {
-                width: 100%;
-            }
-            model-viewer {
-                height: 540px;
-            }
-        }
-        
-        @media (max-width: 640px) {
-            model-viewer {
-                height: 440px;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aztec Temple • 3D Model Viewer</title>
+
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+:root {
+    --bg: #0f1f1c;
+    --card: #1a2e28;
+    --accent: #e8b923;
+    --text: #f0e6d2;
+    --muted: #a89f7f;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(180deg, var(--bg), #0a1814);
+    color: var(--text);
+}
+
+/* HEADER */
+
+header {
+    background: rgba(10,24,20,0.95);
+    border-bottom: 3px solid var(--accent);
+    padding: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.logo {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+/* CONTROLS */
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: var(--card);
+    padding: 12px;
+    border-radius: 12px;
+    flex: 1;
+}
+
+.input-group {
+    display:flex;
+    flex-direction:column;
+    font-size: 0.75rem;
+}
+
+.input-group input,
+.input-group select {
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    background:#0a1814;
+    color:white;
+    width: clamp(120px, 15vw, 180px);
+}
+
+button {
+    padding: 10px 16px;
+    border:none;
+    border-radius: 10px;
+    background: var(--accent);
+    cursor:pointer;
+    font-weight:600;
+}
+
+button.secondary {
+    background:#2f4a44;
+    color:white;
+}
+
+/* LAYOUT */
+
+main {
+    display:flex;
+    gap:20px;
+    padding:20px;
+}
+
+.sidebar {
+    width:300px;
+    background:var(--card);
+    border-radius:16px;
+    padding:16px;
+}
+
+.model-list {
+    list-style:none;
+    max-height:400px;
+    overflow:auto;
+}
+
+.model-list li {
+    padding:10px;
+    cursor:pointer;
+    border-radius:8px;
+}
+
+.model-list li:hover {
+    background:#2f4a44;
+}
+
+.model-list li.active {
+    background: var(--accent);
+    color:black;
+}
+
+/* VIEWER */
+
+.viewer-container {
+    flex:1;
+    display:flex;
+    flex-direction:column;
+}
+
+model-viewer {
+    width:100%;
+    height: clamp(400px, 65vh, 800px);
+    border-radius:16px;
+    background:#0a1814;
+}
+
+/* MOBILE */
+
+@media(max-width:900px){
+    main { flex-direction:column; }
+    .sidebar { width:100%; }
+}
+
+</style>
 </head>
+
 <body>
-    <header>
-        <div class="logo">
-            AZTEC TEMPLE
+
+<header>
+    <div class="logo">AZTEC TEMPLE</div>
+
+    <div class="controls">
+        <div class="input-group">
+            <label>User</label>
+            <input id="username" value="Git4TheHUB">
         </div>
-        
-        <div class="repo-badge">
-            LIVE • Git4TheHUB/Website
+
+        <div class="input-group">
+            <label>Repo</label>
+            <input id="repo" value="Website">
         </div>
-        
-        <div class="controls">
-            <div class="input-group">
-                <label>Username</label>
-                <input type="text" id="username" value="Git4TheHUB" readonly>
-            </div>
-            
-            <div class="input-group">
-                <label>Repository</label>
-                <input type="text" id="repo" value="Website" readonly>
-            </div>
-            
-            <div class="input-group">
-                <label>Branch</label>
-                <select id="branch">
-                    <option value="main" selected>main</option>
-                </select>
-            </div>
-            
-            <button onclick="fetchModels()">
-                Refresh Sacred Models
-            </button>
-            
-            <button onclick="loadDemo()" class="secondary">
-                Load Ancient Demo
-            </button>
-            
-            <div style="margin-left: auto; font-size: 0.95rem; color: var(--accent); display: flex; align-items: center; gap: 10px; font-weight: 600;">
-                <div style="width: 10px; height: 10px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 15px var(--gold-glow); animation: temple-pulse 2s infinite;"></div>
-                Connected to Models/
-            </div>
+
+        <div class="input-group">
+            <label>Branch</label>
+            <select id="branch">
+                <option value="main">main</option>
+            </select>
         </div>
-    </header>
-    
-    <main>
-        <div class="sidebar">
-            <h2>
-                Sacred Models
-                <span id="repo-info" style="margin-left: auto; font-size: 0.9rem; background: #2f4a44; padding: 6px 18px; border-radius: 9999px; color: var(--text); font-weight: 600;">Git4TheHUB/Website</span>
-            </h2>
-            
-            <ul id="modelList" class="model-list">
-                <!-- Populated by JavaScript -->
-            </ul>
-            
-            <div style="margin-top: 28px; font-size: 0.95rem; line-height: 1.6; color: var(--muted);">
-                Automatically loads scene.gltf from Models/ folder.<br>
-                Relative textures from texture/ folder are fully supported.
-            </div>
-        </div>
-        
-        <div class="viewer-container">
-            <div class="viewer-header">
-                <div class="current-model" id="currentModelName">
-                    Loading scene.gltf from the Temple...
-                </div>
-                <div onclick="resetCamera()" style="cursor: pointer; font-size: 1.15rem; display: flex; align-items: center; gap: 10px; color: var(--muted); transition: all 0.3s;">
-                    Reset View
-                </div>
-            </div>
-            
-            <!-- Fixed model loading: direct raw URL confirmed working -->
-            <model-viewer 
-                id="viewer"
-                src="https://raw.githubusercontent.com/Git4TheHUB/Website/main/Models/scene.gltf"
-                alt="scene.gltf — Aztec Temple 3D Model"
-                camera-controls
-                auto-rotate
-                shadow-intensity="1.3"
-                shadow-softness="0.85"
-                exposure="1.05"
-                environment-image="neutral"
-                style="width: 100%; height: 660px;">
-            </model-viewer>
-            
-            <div class="info">
-                <div class="info-item">
-                    Drag mouse — rotate the relic
-                </div>
-                <div class="info-item">
-                    Scroll — zoom into the temple
-                </div>
-                <div class="info-item">
-                    Two-finger drag — pan across the scene
-                </div>
-                <div style="margin-left: auto; font-size: 0.9rem; opacity: 0.75;">
-                    Powered by model-viewer • Textures from texture/ load automatically
-                </div>
-            </div>
-        </div>
-    </main>
-    
-    <footer>
-        Repository automatically loaded from https://github.com/Git4TheHUB/Website<br>
-        Place .glb or .gltf files in the Models/ folder. Textures must reside in the texture/ subfolder using correct relative paths in your scene.gltf file.
-    </footer>
-    
-    <script>
-        let viewer = null;
-        let currentUser = 'Git4TheHUB';
-        let currentRepo = 'Website';
-        let currentBranch = 'main';
-        let currentFilename = 'scene.gltf';
-        
-        function initialize() {
-            viewer = document.getElementById('viewer');
-            
-            // Ensure prefilled values
-            document.getElementById('username').value = currentUser;
-            document.getElementById('repo').value = currentRepo;
-            document.getElementById('branch').value = currentBranch;
-            
-            // Force immediate load of confirmed scene.gltf (fixes any previous loading issues)
-            console.log('%c✅ Aztec Temple Viewer initialized — loading scene.gltf directly', 'color:#e8b923; font-weight:700;');
-            
-            // Always start with the confirmed model
-            loadSelectedModel('scene.gltf');
-            
-            // Then fetch the full list for the sidebar
-            fetchModels();
-        }
-        
-        async function fetchModels() {
-            const listEl = document.getElementById('modelList');
-            const repoInfoEl = document.getElementById('repo-info');
-            
-            repoInfoEl.textContent = `${currentUser}/${currentRepo}`;
-            listEl.innerHTML = `<li style="color: #e8b923; text-align: center; padding: 70px 20px; font-style: italic;">Retrieving sacred models from Models/...</li>`;
-            
-            const apiUrl = `https://api.github.com/repos/${currentUser}/${currentRepo}/contents/Models?ref=${currentBranch}`;
-            
-            try {
-                const response = await fetch(apiUrl, {
-                    headers: { 'Accept': 'application/vnd.github.v3+json' }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Repository or Models/ folder not accessible. Must be public.');
-                }
-                
-                const files = await response.json();
-                
-                const supportedModels = files.filter(file => 
-                    file.type === 'file' && 
-                    (file.name.toLowerCase().endsWith('.glb') || 
-                     file.name.toLowerCase().endsWith('.gltf'))
-                );
-                
-                supportedModels.sort((a, b) => a.name.localeCompare(b.name));
-                
-                if (supportedModels.length === 0) {
-                    listEl.innerHTML = `<li style="color: #e8b923; text-align: center; padding: 70px 20px;">No .glb or .gltf files found in Models/</li>`;
-                    return;
-                }
-                
-                let html = '';
-                supportedModels.forEach(model => {
-                    html += `
-                    <li onclick="loadSelectedModel('${model.name}')">
-                        <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${model.name}</span>
-                    </li>`;
-                });
-                
-                listEl.innerHTML = html;
-                
-                // Highlight the primary scene.gltf
-                const items = document.querySelectorAll('#modelList li');
-                items.forEach(item => {
-                    if (item.textContent.includes('scene.gltf')) {
-                        item.classList.add('active');
-                    }
-                });
-                
-            } catch (error) {
-                console.warn('GitHub API fetch failed — using direct scene.gltf fallback:', error.message);
-                listEl.innerHTML = `
-                    <li style="color: #9b2a1f; text-align: center; padding: 70px 20px;">
-                        Could not retrieve model list.<br>
-                        <span style="font-size: 0.9rem; display: block; margin-top: 12px;">Direct scene.gltf is still loaded above.</span>
-                    </li>`;
-            }
-        }
-        
-        function loadSelectedModel(filename) {
-            currentFilename = filename;
-            
-            // Direct raw GitHub URL — confirmed working for this repo
-            const rawUrl = `https://raw.githubusercontent.com/${currentUser}/${currentRepo}/${currentBranch}/Models/${filename}`;
-            
-            viewer.src = rawUrl;
-            viewer.setAttribute('alt', `${filename} — Aztec Temple Model`);
-            
-            document.getElementById('currentModelName').innerHTML = `
-                ${filename} 
-                <span style="font-size: 0.9rem; margin-left: 16px; color: var(--muted);">from Models/ • texture/ supported</span>
-            `;
-            
-            // Highlight active
-            const items = document.querySelectorAll('#modelList li');
-            items.forEach(item => {
-                item.classList.remove('active');
-                if (item.textContent.includes(filename)) {
-                    item.classList.add('active');
-                }
-            });
-            
-            console.log(`✅ Loaded Aztec model: ${filename}`);
-        }
-        
-        function loadDemo() {
-            const demoUrl = "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb";
-            
-            viewer.src = demoUrl;
-            document.getElementById('currentModelName').innerHTML = `
-                Ancient Demo Relic 
-                <span style="font-size: 0.9rem; margin-left: 16px; color: var(--muted);">external sample</span>
-            `;
-            
-            const items = document.querySelectorAll('#modelList li');
-            items.forEach(item => item.classList.remove('active'));
-        }
-        
-        function resetCamera() {
-            if (viewer) {
-                viewer.cameraOrbit = "45deg 55deg 4m";
-                viewer.style.transition = 'filter 0.5s ease';
-                viewer.style.filter = 'brightness(1.5) saturate(1.3)';
-                setTimeout(() => {
-                    viewer.style.filter = 'none';
-                }, 500);
-            }
-        }
-        
+
+        <button onclick="fetchModels()">Refresh</button>
+        <button onclick="loadDemo()" class="secondary">Demo</button>
+    </div>
+</header>
+
+<main>
+
+<div class="sidebar">
+    <h3>Models</h3>
+    <ul id="modelList" class="model-list"></ul>
+</div>
+
+<div class="viewer-container">
+
+    <h3 id="currentModelName">Loading...</h3>
+
+    <model-viewer
+        id="viewer"
+        src="https://cdn.jsdelivr.net/gh/Git4TheHUB/Website@main/Models/scene.gltf"
+        camera-controls
+        auto-rotate
+        exposure="1"
+        shadow-intensity="1">
+    </model-viewer>
+
+</div>
+
+</main>
+
+<script>
+let viewer;
+let currentUser = 'Git4TheHUB';
+let currentRepo = 'Website';
+let currentBranch = 'main';
+
+function init(){
+    viewer = document.getElementById('viewer');
+    fetchModels();
+
+    viewer.addEventListener('load', () => {
+        console.log('✅ Model loaded');
+    });
+
+    viewer.addEventListener('error', e => {
+        console.error('❌ Model failed', e);
+    });
+}
+
+async function fetchModels(){
+    const list = document.getElementById('modelList');
+    list.innerHTML = "Loading...";
+
+    const url = `https://api.github.com/repos/${currentUser}/${currentRepo}/contents/Models?ref=${currentBranch}`;
+
+    try{
+        const res = await fetch(url);
+        const data = await res.json();
+
+        const models = data.filter(f =>
+            f.name.endsWith('.glb') || f.name.endsWith('.gltf')
+        );
+
+        list.innerHTML = "";
+
+        models.forEach(m=>{
+            const li = document.createElement('li');
+            li.textContent = m.name;
+            li.onclick = () => loadModel(m.name);
+            list.appendChild(li);
+        });
+
+    }catch(e){
+        list.innerHTML = "Error loading models";
+    }
+}
+
+function loadModel(name){
+    const url = `https://cdn.jsdelivr.net/gh/${currentUser}/${currentRepo}@${currentBranch}/Models/${name}`;
+
+    viewer.src = url;
+    document.getElementById('currentModelName').textContent = name;
+
+    document.querySelectorAll('#modelList li').forEach(li=>{
+        li.classList.toggle('active', li.textContent === name);
+    });
+}
+
+function loadDemo(){
+    viewer.src = "https://modelviewer.dev/shared-assets/models/Astronaut.glb";
+    document.getElementById('currentModelName').textContent = "Demo Model";
+}
+
+window.onload = init;
+</script>
+
+</body>
+</html>
         window.onload = initialize;
     </script>
 </body>
