@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub 3D Models • Git4TheHUB/Website</title>
+    <title>3D Model Viewer • Git4TheHUB/Website</title>
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap');
         
         :root {
-            --bg: #0f172a;
-            --card: #1e2937;
-            --accent: #22d3ee;
+            --bg: #052e16;
+            --card: #0f3d24;
+            --accent: #10b981;
+            --text: #e2e8f0;
+            --muted: #64748b;
         }
         
         * {
@@ -22,48 +24,66 @@
         
         body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: var(--bg);
-            color: #e2e8f0;
+            background: linear-gradient(180deg, var(--bg) 0%, #021f10 100%);
+            color: var(--text);
             min-height: 100vh;
             overflow-x: hidden;
+            position: relative;
+        }
+        
+        /* Fancy background grid */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, rgba(16, 185, 129, 0.03) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(16, 185, 129, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+            opacity: 0.6;
         }
         
         header {
-            background: #020617;
-            border-bottom: 1px solid #334155;
-            padding: 1rem 2rem;
+            background: rgba(2, 31, 16, 0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 2px solid rgba(16, 185, 129, 0.3);
+            padding: 1.25rem 2rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
             flex-wrap: wrap;
             gap: 1rem;
+            box-shadow: 0 10px 30px -10px rgba(16, 185, 129, 0.4);
         }
         
         .logo {
             display: flex;
             align-items: center;
             gap: 12px;
-            font-size: 1.5rem;
+            font-size: 1.75rem;
             font-weight: 600;
-            color: white;
-        }
-        
-        .logo span {
-            background: linear-gradient(90deg, #22d3ee, #a78bfa);
+            letter-spacing: -0.5px;
+            background: linear-gradient(90deg, #10b981, #34d399);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
         
         .repo-badge {
-            background: #334155;
-            color: #22d3ee;
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
             font-size: 0.85rem;
-            padding: 4px 12px;
+            padding: 6px 16px;
             border-radius: 9999px;
-            font-weight: 500;
+            font-weight: 600;
+            border: 1px solid rgba(16, 185, 129, 0.3);
             display: flex;
             align-items: center;
             gap: 6px;
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
         }
         
         .controls {
@@ -72,9 +92,10 @@
             gap: 16px;
             flex-wrap: wrap;
             background: var(--card);
-            padding: 12px 20px;
-            border-radius: 12px;
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);
+            padding: 14px 24px;
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgb(16 185 129 / 0.15),
+                        0 8px 10px -6px rgb(16 185 129 / 0.15);
         }
         
         .input-group {
@@ -85,124 +106,149 @@
         
         .input-group label {
             font-size: 0.75rem;
-            font-weight: 500;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #64748b;
+            letter-spacing: 1px;
+            color: var(--muted);
         }
         
         .input-group input,
         .input-group select {
-            background: #0f172a;
-            border: 2px solid #334155;
-            border-radius: 8px;
-            padding: 8px 14px;
-            color: white;
+            background: #021f10;
+            border: 2px solid #1f5c3a;
+            border-radius: 12px;
+            padding: 10px 16px;
+            color: var(--text);
             font-size: 1rem;
-            width: 180px;
+            width: 190px;
             outline: none;
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .input-group input:focus,
         .input-group select:focus {
             border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.25);
         }
         
         button {
-            background: var(--accent);
-            color: #0f172a;
+            background: linear-gradient(90deg, var(--accent), #34d399);
+            color: #021f10;
             border: none;
-            border-radius: 8px;
-            padding: 10px 24px;
+            border-radius: 12px;
+            padding: 12px 28px;
             font-weight: 600;
             font-size: 1rem;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             align-items: center;
             gap: 8px;
+            box-shadow: 0 10px 15px -3px rgb(16 185 129);
         }
         
         button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgb(34 211 238);
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 20px 25px -5px rgb(16 185 129),
+                        0 0 20px 6px rgba(16, 185, 129, 0.4);
         }
         
         button.secondary {
-            background: #334155;
-            color: #e2e8f0;
+            background: #1f5c3a;
+            color: var(--text);
+            box-shadow: none;
+        }
+        
+        button.secondary:hover {
+            background: #2a7a4f;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
         }
         
         main {
             display: flex;
-            gap: 24px;
-            padding: 2rem;
-            max-width: 1600px;
+            gap: 28px;
+            padding: 2.5rem;
+            max-width: 1680px;
             margin: 0 auto;
         }
         
         .sidebar {
-            width: 300px;
+            width: 320px;
             background: var(--card);
-            border-radius: 16px;
-            padding: 20px;
-            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 30px 60px -15px rgb(16 185 129 / 0.3),
+                        inset 0 2px 0 rgba(255,255,255,0.1);
             display: flex;
             flex-direction: column;
             height: fit-content;
+            position: relative;
+        }
+        
+        .sidebar::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, transparent, var(--accent), transparent);
+            border-radius: 22px;
+            z-index: -1;
+            filter: blur(8px);
+            opacity: 0.3;
         }
         
         .sidebar h2 {
-            font-size: 1.1rem;
-            margin-bottom: 16px;
+            font-size: 1.25rem;
+            margin-bottom: 20px;
+            font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 8px;
+            color: #fff;
         }
         
         .model-list {
             list-style: none;
             max-height: 520px;
             overflow-y: auto;
-            background: #0f172a;
-            border-radius: 12px;
+            background: #021f10;
+            border-radius: 16px;
             padding: 8px;
+            border: 1px solid #1f5c3a;
         }
         
         .model-list li {
-            padding: 14px 16px;
-            margin-bottom: 4px;
-            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 6px;
+            border-radius: 12px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             align-items: center;
-            gap: 12px;
-            font-size: 1rem;
+            font-size: 1.05rem;
+            color: var(--text);
         }
         
         .model-list li:hover {
-            background: #1e2937;
+            background: #1f5c3a;
+            transform: translateX(4px);
         }
         
         .model-list li.active {
-            background: #22d3ee;
-            color: #0f172a;
+            background: linear-gradient(90deg, var(--accent), #34d399);
+            color: #021f10;
             font-weight: 600;
-        }
-        
-        .model-list li .file-icon {
-            font-size: 1.3rem;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.6);
         }
         
         .viewer-container {
             flex: 1;
-            background: #020617;
-            border-radius: 20px;
-            padding: 16px;
-            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+            background: #021f10;
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 30px 60px -15px rgb(16 185 129 / 0.3),
+                        0 0 0 1px rgba(16, 185, 129, 0.2) inset;
             display: flex;
             flex-direction: column;
         }
@@ -211,46 +257,67 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
-            padding: 0 8px;
+            margin-bottom: 16px;
+            padding: 0 12px;
         }
         
         .current-model {
-            font-size: 1.1rem;
-            font-weight: 500;
-            color: #22d3ee;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--accent);
+            letter-spacing: -0.3px;
         }
         
         model-viewer {
             width: 100%;
-            height: 620px;
-            border-radius: 16px;
-            background: radial-gradient(circle at center, #1e2937 0%, #020617 80%);
-            box-shadow: inset 0 0 80px rgba(34, 211, 238, 0.15);
+            height: 640px;
+            border-radius: 20px;
+            background: radial-gradient(circle at 50% 30%, #1f5c3a 0%, #021f10 70%);
+            box-shadow: 
+                0 0 60px -10px rgba(16, 185, 129, 0.5),
+                inset 0 0 80px rgba(16, 185, 129, 0.2);
+            transition: box-shadow 0.4s ease;
+        }
+        
+        model-viewer:hover {
+            box-shadow: 
+                0 0 80px -10px rgba(16, 185, 129, 0.7),
+                inset 0 0 100px rgba(16, 185, 129, 0.3);
         }
         
         .info {
-            margin-top: 16px;
-            font-size: 0.9rem;
-            color: #64748b;
+            margin-top: 20px;
+            font-size: 0.95rem;
+            color: var(--muted);
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 24px;
             flex-wrap: wrap;
+            padding: 0 12px;
         }
         
         .info-item {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
         
         footer {
             text-align: center;
-            padding: 2rem;
-            color: #64748b;
-            font-size: 0.9rem;
-            border-top: 1px solid #334155;
+            padding: 2.5rem 2rem;
+            color: var(--muted);
+            font-size: 0.95rem;
+            border-top: 1px solid #1f5c3a;
+            background: rgba(2, 31, 16, 0.6);
+        }
+        
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
         }
         
         @media (max-width: 1024px) {
@@ -275,255 +342,198 @@
 <body>
     <header>
         <div class="logo">
-            <span>🧊</span>
-            GitHub 3D Models
+            3D Model Viewer
             <div class="repo-badge">
-                📍 Git4TheHUB/Website
+                LIVE • Git4TheHUB/Website
             </div>
         </div>
         
         <div class="controls">
-            <!-- Prefilled for your repo -->
             <div class="input-group">
-                <label>GitHub Username</label>
-                <input type="text" id="username" placeholder="your-username" value="Git4TheHUB">
+                <label>Username</label>
+                <input type="text" id="username" value="Git4TheHUB" readonly>
             </div>
             
             <div class="input-group">
                 <label>Repository</label>
-                <input type="text" id="repo" placeholder="your-repo-name" value="Website">
+                <input type="text" id="repo" value="Website" readonly>
             </div>
             
             <div class="input-group">
                 <label>Branch</label>
                 <select id="branch">
                     <option value="main" selected>main</option>
-                    <option value="master">master</option>
                 </select>
             </div>
             
             <button onclick="fetchModels()">
-                <span>🔄</span>
                 Refresh Models
             </button>
             
             <button onclick="loadDemo()" class="secondary">
-                <span>🚀</span>
-                Load Demo Model
+                Load Demo
             </button>
             
-            <div style="margin-left: auto; font-size: 0.85rem; color: #64748b; display: flex; align-items: center; gap: 8px;">
-                <div style="width: 8px; height: 8px; background: #22d3ee; border-radius: 50%; animation: pulse 2s infinite;"></div>
-                Auto-loaded from your repo • Models/ + textures/
+            <div style="margin-left: auto; font-size: 0.9rem; color: #10b981; display: flex; align-items: center; gap: 8px; font-weight: 500;">
+                <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; box-shadow: 0 0 12px #10b981; animation: pulse 2s infinite;"></div>
+                Connected to Models folder
             </div>
         </div>
     </header>
     
     <main>
-        <!-- Sidebar: Model list (still works for Models/ folder) -->
         <div class="sidebar">
             <h2>
-                📁 Models/
-                <span id="repo-info" style="margin-left: auto; font-size: 0.85rem; background: #334155; padding: 2px 10px; border-radius: 9999px; color: #e2e8f0;">Git4TheHUB/Website</span>
+                Models Folder
+                <span id="repo-info" style="margin-left: auto; font-size: 0.85rem; background: #1f5c3a; padding: 4px 14px; border-radius: 9999px; color: #fff; font-weight: 500;">Git4TheHUB/Website</span>
             </h2>
             
             <ul id="modelList" class="model-list">
-                <!-- Auto-populated on load -->
+                <!-- Populated automatically -->
             </ul>
             
-            <div style="margin-top: 20px; font-size: 0.8rem; line-height: 1.4; color: #64748b;">
-                ✅ Automatically loads <strong>scene.gltf</strong> from your Models/ folder<br>
-                ✅ Supports textures/ subfolder (relative paths work automatically)<br>
-                ✅ Also loads scene.bin + any .glb/.gltf you add
+            <div style="margin-top: 24px; font-size: 0.9rem; line-height: 1.5; color: var(--muted);">
+                Automatically loads scene.gltf from Models/<br>
+                Relative textures from texture/ folder are supported
             </div>
         </div>
         
-        <!-- 3D Viewer -->
         <div class="viewer-container">
             <div class="viewer-header">
                 <div class="current-model" id="currentModelName">
-                    Loading scene.gltf from Git4TheHUB/Website...
+                    Loading scene.gltf...
                 </div>
-                <div onclick="resetCamera()" style="cursor:pointer; font-size:1.1rem; display:flex; align-items:center; gap:6px; color:#64748b;">
-                    🔄 Reset camera
+                <div onclick="resetCamera()" style="cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; color: var(--muted); transition: color 0.3s;">
+                    Reset Camera
                 </div>
             </div>
             
-            <!-- The actual 3D model viewer -->
             <model-viewer 
                 id="viewer"
                 src="https://raw.githubusercontent.com/Git4TheHUB/Website/main/Models/scene.gltf"
-                alt="scene.gltf from your GitHub repo"
+                alt="scene.gltf from Git4TheHUB/Website"
                 camera-controls
                 auto-rotate
-                shadow-intensity="1"
-                shadow-softness="0.8"
-                exposure="0.9"
+                shadow-intensity="1.2"
+                shadow-softness="0.9"
+                exposure="1"
                 environment-image="neutral"
-                style="width: 100%; height: 620px;">
+                style="width: 100%; height: 640px;">
             </model-viewer>
             
             <div class="info">
                 <div class="info-item">
-                    <span style="font-size:1.3rem;">🖱️</span>
-                    Drag — rotate
+                    Mouse drag — rotate
                 </div>
                 <div class="info-item">
-                    <span style="font-size:1.3rem;">🔄</span>
                     Scroll — zoom
                 </div>
                 <div class="info-item">
-                    <span style="font-size:1.3rem;">📱</span>
                     Two-finger drag — pan
                 </div>
-                <div style="margin-left:auto; font-size:0.75rem; opacity:0.6;">
-                    Powered by Google model-viewer • Textures from textures/ folder load automatically
+                <div style="margin-left: auto; font-size: 0.85rem; opacity: 0.7;">
+                    Powered by model-viewer • Textures load from texture/ folder
                 </div>
             </div>
         </div>
     </main>
     
     <footer>
-        📍 Your repo <strong>https://github.com/Git4TheHUB/Website</strong> is pre-loaded.<br>
-        Put .glb / .gltf files in <strong>Models/</strong> folder • Textures go in <strong>Models/textures/</strong> (relative paths work).<br>
-        <span style="font-size:0.75rem; opacity:0.5;">Fully automatic • Refresh button still works if you add more models</span>
+        Repository automatically loaded from https://github.com/Git4TheHUB/Website<br>
+        Place any .glb or .gltf files in the Models/ folder. Textures must be in the texture/ subfolder with correct relative paths.
     </footer>
     
     <script>
-        // Main 3D viewer element
         let viewer = null;
         let currentUser = 'Git4TheHUB';
         let currentRepo = 'Website';
         let currentBranch = 'main';
         let currentFilename = 'scene.gltf';
         
-        // Initialize when page loads
         function initialize() {
             viewer = document.getElementById('viewer');
             
-            console.log('%c🚀 Auto-loading Git4TheHUB/Website Models/scene.gltf', 'color:#22d3ee; font-size:1.1rem; font-weight:600;');
+            // Ensure prefilled values
+            document.getElementById('username').value = currentUser;
+            document.getElementById('repo').value = currentRepo;
+            document.getElementById('branch').value = currentBranch;
             
-            // Prefill inputs (already set in HTML, but ensure)
-            document.getElementById('username').value = 'Git4TheHUB';
-            document.getElementById('repo').value = 'Website';
-            document.getElementById('branch').value = 'main';
-            
-            // Automatically fetch and load your repo's Models/ folder + scene.gltf
+            // Auto-load the repo and scene.gltf
             fetchModels();
-            
-            // Keyboard shortcut hint
-            document.addEventListener('keydown', function(e) {
-                if (e.metaKey && e.key === 'k') {
-                    e.preventDefault();
-                    document.getElementById('username').focus();
-                }
-            });
         }
         
-        // Fetch list of models from GitHub API (still supports your Models/ folder)
         async function fetchModels() {
-            currentUser = document.getElementById('username').value.trim();
-            currentRepo = document.getElementById('repo').value.trim();
-            currentBranch = document.getElementById('branch').value;
-            
             const listEl = document.getElementById('modelList');
             const repoInfoEl = document.getElementById('repo-info');
             
-            if (!currentUser || !currentRepo) {
-                listEl.innerHTML = `
-                    <li style="color:#f87171; text-align:center; padding:40px 20px;">
-                        ⚠️ Please enter your GitHub username and repository name
-                    </li>`;
-                return;
-            }
-            
-            // Update UI
             repoInfoEl.textContent = `${currentUser}/${currentRepo}`;
-            listEl.innerHTML = `<li style="color:#64748b; text-align:center; padding:60px 20px;">Fetching Models/ folder...</li>`;
+            listEl.innerHTML = `<li style="color: #10b981; text-align: center; padding: 60px 20px; font-style: italic;">Loading models from Models/ folder...</li>`;
             
             const apiUrl = `https://api.github.com/repos/${currentUser}/${currentRepo}/contents/Models?ref=${currentBranch}`;
             
             try {
                 const response = await fetch(apiUrl, {
-                    headers: {
-                        'Accept': 'application/vnd.github.v3+json'
-                    }
+                    headers: { 'Accept': 'application/vnd.github.v3+json' }
                 });
                 
                 if (!response.ok) {
-                    let msg = 'Repository not found or private';
-                    if (response.status === 404) msg = 'Models folder not found';
-                    if (response.status === 403) msg = 'Rate limited';
-                    throw new Error(msg);
+                    throw new Error('Unable to load Models folder. Repository must be public.');
                 }
                 
                 const files = await response.json();
                 
-                // Filter supported 3D formats
                 const supportedModels = files.filter(file => 
                     file.type === 'file' && 
                     (file.name.toLowerCase().endsWith('.glb') || 
-                     file.name.toLowerCase().endsWith('.gltf') || 
-                     file.name.toLowerCase().endsWith('.usdz'))
+                     file.name.toLowerCase().endsWith('.gltf'))
                 );
                 
                 supportedModels.sort((a, b) => a.name.localeCompare(b.name));
                 
                 if (supportedModels.length === 0) {
-                    listEl.innerHTML = `
-                        <li style="color:#64748b; text-align:center; padding:40px 20px;">
-                            No .glb, .gltf or .usdz files in Models/ yet.<br>
-                            (scene.gltf should appear once uploaded)
-                        </li>`;
+                    listEl.innerHTML = `<li style="color: #10b981; text-align: center; padding: 60px 20px;">No .glb or .gltf files found in Models/</li>`;
                     return;
                 }
                 
-                // Build list
                 let html = '';
                 supportedModels.forEach(model => {
                     html += `
-                    <li onclick="loadSelectedModel('${model.name}')" title="${model.name}">
-                        <span class="file-icon">📦</span>
+                    <li onclick="loadSelectedModel('${model.name}')">
                         <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${model.name}</span>
                     </li>`;
                 });
                 
                 listEl.innerHTML = html;
                 
-                // Auto-load the first model (your scene.gltf)
+                // Auto-load first model (scene.gltf)
                 if (supportedModels.length > 0) {
                     loadSelectedModel(supportedModels[0].name);
                 }
                 
             } catch (error) {
-                console.error(error);
                 listEl.innerHTML = `
-                    <li style="color:#f87171; text-align:center; padding:40px 20px;">
+                    <li style="color: #f87171; text-align: center; padding: 60px 20px;">
                         ${error.message}<br>
-                        <small style="display:block; margin-top:12px; opacity:0.8;">
-                            Make sure Models/ folder + scene.gltf exist and repo is public
-                        </small>
+                        <span style="font-size: 0.85rem; display: block; margin-top: 12px;">Ensure Models/ folder and scene.gltf exist</span>
                     </li>`;
+                // Still keep the hard-coded scene.gltf in viewer as fallback
+                console.log('Using direct scene.gltf fallback');
             }
         }
         
-        // Load a model from your GitHub repo (handles scene.gltf + textures/ automatically)
         function loadSelectedModel(filename) {
             currentFilename = filename;
             
-            // Raw GitHub URL (textures/ and scene.bin resolve automatically because they are relative in the .gltf)
             const rawUrl = `https://raw.githubusercontent.com/${currentUser}/${currentRepo}/${currentBranch}/Models/${filename}`;
             
             viewer.src = rawUrl;
             viewer.setAttribute('alt', filename);
             
-            // Update UI
             document.getElementById('currentModelName').innerHTML = `
-                📦 ${filename} 
-                <span style="font-size:0.8rem; margin-left:12px; color:#64748b;">from Models/ • textures/ supported</span>
+                ${filename} 
+                <span style="font-size: 0.85rem; margin-left: 14px; color: #64748b;">from Models/ • texture/ supported</span>
             `;
             
-            // Highlight active item
             const items = document.querySelectorAll('#modelList li');
             items.forEach(item => {
                 item.classList.remove('active');
@@ -531,39 +541,32 @@
                     item.classList.add('active');
                 }
             });
-            
-            console.log(`✅ Loaded: ${filename} (textures load from textures/ subfolder)`);
         }
         
-        // Load a beautiful demo model instantly
         function loadDemo() {
             const demoUrl = "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb";
             
             viewer.src = demoUrl;
             document.getElementById('currentModelName').innerHTML = `
-                🚀 Damaged Helmet — Demo 
-                <span style="font-size:0.8rem; margin-left:12px; color:#64748b;">(not from your repo)</span>
+                Damaged Helmet — Demo 
+                <span style="font-size: 0.85rem; margin-left: 14px; color: #64748b;">external sample</span>
             `;
             
             const items = document.querySelectorAll('#modelList li');
             items.forEach(item => item.classList.remove('active'));
-            
-            console.log('🎉 Demo loaded');
         }
         
-        // Reset camera to default position
         function resetCamera() {
             if (viewer) {
                 viewer.cameraOrbit = "45deg 55deg 3.5m";
-                viewer.style.transition = 'filter 0.3s';
-                viewer.style.filter = 'brightness(1.4)';
+                viewer.style.transition = 'filter 0.4s ease';
+                viewer.style.filter = 'brightness(1.6) saturate(1.2)';
                 setTimeout(() => {
                     viewer.style.filter = 'none';
-                }, 300);
+                }, 400);
             }
         }
         
-        // Auto-run
         window.onload = initialize;
     </script>
 </body>
