@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub 3D Models • Interactive Viewer</title>
+    <title>GitHub 3D Models • Git4TheHUB/Website</title>
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap');
@@ -52,6 +52,18 @@
             background: linear-gradient(90deg, #22d3ee, #a78bfa);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+        }
+        
+        .repo-badge {
+            background: #334155;
+            color: #22d3ee;
+            font-size: 0.85rem;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
         
         .controls {
@@ -265,18 +277,21 @@
         <div class="logo">
             <span>🧊</span>
             GitHub 3D Models
+            <div class="repo-badge">
+                📍 Git4TheHUB/Website
+            </div>
         </div>
         
         <div class="controls">
-            <!-- GitHub repo inputs -->
+            <!-- Prefilled for your repo -->
             <div class="input-group">
                 <label>GitHub Username</label>
-                <input type="text" id="username" placeholder="your-username" value="">
+                <input type="text" id="username" placeholder="your-username" value="Git4TheHUB">
             </div>
             
             <div class="input-group">
                 <label>Repository</label>
-                <input type="text" id="repo" placeholder="your-repo-name" value="">
+                <input type="text" id="repo" placeholder="your-repo-name" value="Website">
             </div>
             
             <div class="input-group">
@@ -289,7 +304,7 @@
             
             <button onclick="fetchModels()">
                 <span>🔄</span>
-                Fetch Models
+                Refresh Models
             </button>
             
             <button onclick="loadDemo()" class="secondary">
@@ -299,32 +314,27 @@
             
             <div style="margin-left: auto; font-size: 0.85rem; color: #64748b; display: flex; align-items: center; gap: 8px;">
                 <div style="width: 8px; height: 8px; background: #22d3ee; border-radius: 50%; animation: pulse 2s infinite;"></div>
-                Ready to view your Models/ folder
+                Auto-loaded from your repo • Models/ + textures/
             </div>
         </div>
     </header>
     
     <main>
-        <!-- Sidebar: Model list -->
+        <!-- Sidebar: Model list (still works for Models/ folder) -->
         <div class="sidebar">
             <h2>
                 📁 Models/
-                <span id="repo-info" style="margin-left: auto; font-size: 0.85rem; background: #334155; padding: 2px 10px; border-radius: 9999px; color: #e2e8f0;"></span>
+                <span id="repo-info" style="margin-left: auto; font-size: 0.85rem; background: #334155; padding: 2px 10px; border-radius: 9999px; color: #e2e8f0;">Git4TheHUB/Website</span>
             </h2>
             
             <ul id="modelList" class="model-list">
-                <!-- Populated by JavaScript -->
-                <li style="color:#64748b; text-align:center; padding: 40px 20px; font-style:italic;">
-                    Enter your GitHub username + repo above<br>
-                    and click "Fetch Models" to see everything<br>
-                    in your <strong>Models</strong> folder
-                </li>
+                <!-- Auto-populated on load -->
             </ul>
             
             <div style="margin-top: 20px; font-size: 0.8rem; line-height: 1.4; color: #64748b;">
-                ✅ Supports <strong>.glb</strong> and <strong>.gltf</strong><br>
-                ✅ Put any 3D models in your repo's <strong>Models/</strong> folder<br>
-                ✅ Works on GitHub Pages instantly
+                ✅ Automatically loads <strong>scene.gltf</strong> from your Models/ folder<br>
+                ✅ Supports textures/ subfolder (relative paths work automatically)<br>
+                ✅ Also loads scene.bin + any .glb/.gltf you add
             </div>
         </div>
         
@@ -332,7 +342,7 @@
         <div class="viewer-container">
             <div class="viewer-header">
                 <div class="current-model" id="currentModelName">
-                    Damaged Helmet — Demo
+                    Loading scene.gltf from Git4TheHUB/Website...
                 </div>
                 <div onclick="resetCamera()" style="cursor:pointer; font-size:1.1rem; display:flex; align-items:center; gap:6px; color:#64748b;">
                     🔄 Reset camera
@@ -342,8 +352,8 @@
             <!-- The actual 3D model viewer -->
             <model-viewer 
                 id="viewer"
-                src="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb"
-                alt="3D Model from your GitHub Models folder"
+                src="https://raw.githubusercontent.com/Git4TheHUB/Website/main/Models/scene.gltf"
+                alt="scene.gltf from your GitHub repo"
                 camera-controls
                 auto-rotate
                 shadow-intensity="1"
@@ -367,31 +377,39 @@
                     Two-finger drag — pan
                 </div>
                 <div style="margin-left:auto; font-size:0.75rem; opacity:0.6;">
-                    Powered by Google model-viewer • Works with any public GitHub repo
+                    Powered by Google model-viewer • Textures from textures/ folder load automatically
                 </div>
             </div>
         </div>
     </main>
     
     <footer>
-        📍 Drop your 3D models in a folder called <strong>Models</strong> in your GitHub repository.<br>
-        Deploy this file as <strong>index.html</strong> to GitHub Pages and you're live in seconds.<br>
-        <span style="font-size:0.75rem; opacity:0.5;">Made for you with ❤️ • Fully standalone HTML • No backend needed</span>
+        📍 Your repo <strong>https://github.com/Git4TheHUB/Website</strong> is pre-loaded.<br>
+        Put .glb / .gltf files in <strong>Models/</strong> folder • Textures go in <strong>Models/textures/</strong> (relative paths work).<br>
+        <span style="font-size:0.75rem; opacity:0.5;">Fully automatic • Refresh button still works if you add more models</span>
     </footer>
     
     <script>
         // Main 3D viewer element
         let viewer = null;
-        let currentUser = '';
-        let currentRepo = '';
+        let currentUser = 'Git4TheHUB';
+        let currentRepo = 'Website';
         let currentBranch = 'main';
-        let currentFilename = '';
+        let currentFilename = 'scene.gltf';
         
         // Initialize when page loads
         function initialize() {
             viewer = document.getElementById('viewer');
             
-            console.log('%c🚀 GitHub 3D Model Viewer ready!', 'color:#22d3ee; font-size:1.1rem; font-weight:600;');
+            console.log('%c🚀 Auto-loading Git4TheHUB/Website Models/scene.gltf', 'color:#22d3ee; font-size:1.1rem; font-weight:600;');
+            
+            // Prefill inputs (already set in HTML, but ensure)
+            document.getElementById('username').value = 'Git4TheHUB';
+            document.getElementById('repo').value = 'Website';
+            document.getElementById('branch').value = 'main';
+            
+            // Automatically fetch and load your repo's Models/ folder + scene.gltf
+            fetchModels();
             
             // Keyboard shortcut hint
             document.addEventListener('keydown', function(e) {
@@ -402,7 +420,7 @@
             });
         }
         
-        // Fetch list of models from GitHub API
+        // Fetch list of models from GitHub API (still supports your Models/ folder)
         async function fetchModels() {
             currentUser = document.getElementById('username').value.trim();
             currentRepo = document.getElementById('repo').value.trim();
@@ -421,7 +439,7 @@
             
             // Update UI
             repoInfoEl.textContent = `${currentUser}/${currentRepo}`;
-            listEl.innerHTML = `<li style="color:#64748b; text-align:center; padding:60px 20px;">Fetching models from Models/ folder...</li>`;
+            listEl.innerHTML = `<li style="color:#64748b; text-align:center; padding:60px 20px;">Fetching Models/ folder...</li>`;
             
             const apiUrl = `https://api.github.com/repos/${currentUser}/${currentRepo}/contents/Models?ref=${currentBranch}`;
             
@@ -434,14 +452,14 @@
                 
                 if (!response.ok) {
                     let msg = 'Repository not found or private';
-                    if (response.status === 404) msg = 'Models folder not found (create Models/ in your repo)';
-                    if (response.status === 403) msg = 'Rate limited or private repo';
+                    if (response.status === 404) msg = 'Models folder not found';
+                    if (response.status === 403) msg = 'Rate limited';
                     throw new Error(msg);
                 }
                 
                 const files = await response.json();
                 
-                // Filter only supported 3D formats
+                // Filter supported 3D formats
                 const supportedModels = files.filter(file => 
                     file.type === 'file' && 
                     (file.name.toLowerCase().endsWith('.glb') || 
@@ -449,32 +467,30 @@
                      file.name.toLowerCase().endsWith('.usdz'))
                 );
                 
-                // Sort alphabetically
                 supportedModels.sort((a, b) => a.name.localeCompare(b.name));
                 
                 if (supportedModels.length === 0) {
                     listEl.innerHTML = `
                         <li style="color:#64748b; text-align:center; padding:40px 20px;">
-                            No .glb, .gltf or .usdz files found in your Models/ folder.<br>
-                            <span style="font-size:0.85rem;">Add some 3D models and click "Fetch Models" again!</span>
+                            No .glb, .gltf or .usdz files in Models/ yet.<br>
+                            (scene.gltf should appear once uploaded)
                         </li>`;
                     return;
                 }
                 
-                // Build beautiful list
+                // Build list
                 let html = '';
                 supportedModels.forEach(model => {
                     html += `
                     <li onclick="loadSelectedModel('${model.name}')" title="${model.name}">
                         <span class="file-icon">📦</span>
                         <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${model.name}</span>
-                        <span style="font-size:0.7rem; background:#334155; padding:2px 8px; border-radius:9999px;">${model.size ? (model.size/1024).toFixed(0)+'KB' : ''}</span>
                     </li>`;
                 });
                 
                 listEl.innerHTML = html;
                 
-                // Auto-load the first model
+                // Auto-load the first model (your scene.gltf)
                 if (supportedModels.length > 0) {
                     loadSelectedModel(supportedModels[0].name);
                 }
@@ -485,17 +501,17 @@
                     <li style="color:#f87171; text-align:center; padding:40px 20px;">
                         ${error.message}<br>
                         <small style="display:block; margin-top:12px; opacity:0.8;">
-                            Make sure your repo is public and the folder is exactly named <strong>Models</strong>
+                            Make sure Models/ folder + scene.gltf exist and repo is public
                         </small>
                     </li>`;
             }
         }
         
-        // Load a model from your GitHub repo
+        // Load a model from your GitHub repo (handles scene.gltf + textures/ automatically)
         function loadSelectedModel(filename) {
             currentFilename = filename;
             
-            // Build raw GitHub URL (always works)
+            // Raw GitHub URL (textures/ and scene.bin resolve automatically because they are relative in the .gltf)
             const rawUrl = `https://raw.githubusercontent.com/${currentUser}/${currentRepo}/${currentBranch}/Models/${filename}`;
             
             viewer.src = rawUrl;
@@ -504,10 +520,10 @@
             // Update UI
             document.getElementById('currentModelName').innerHTML = `
                 📦 ${filename} 
-                <span style="font-size:0.8rem; margin-left:12px; color:#64748b;">from ${currentUser}/${currentRepo}</span>
+                <span style="font-size:0.8rem; margin-left:12px; color:#64748b;">from Models/ • textures/ supported</span>
             `;
             
-            // Highlight active item in list
+            // Highlight active item
             const items = document.querySelectorAll('#modelList li');
             items.forEach(item => {
                 item.classList.remove('active');
@@ -516,31 +532,29 @@
                 }
             });
             
-            console.log(`✅ Loaded: ${filename}`);
+            console.log(`✅ Loaded: ${filename} (textures load from textures/ subfolder)`);
         }
         
-        // Load a beautiful demo model instantly (no GitHub needed)
+        // Load a beautiful demo model instantly
         function loadDemo() {
             const demoUrl = "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb";
             
             viewer.src = demoUrl;
             document.getElementById('currentModelName').innerHTML = `
-                🚀 Damaged Helmet — Demo Model 
-                <span style="font-size:0.8rem; margin-left:12px; color:#64748b;">(Khronos glTF sample)</span>
+                🚀 Damaged Helmet — Demo 
+                <span style="font-size:0.8rem; margin-left:12px; color:#64748b;">(not from your repo)</span>
             `;
             
-            // Clear list highlight
             const items = document.querySelectorAll('#modelList li');
             items.forEach(item => item.classList.remove('active'));
             
-            console.log('🎉 Demo model loaded — now try your own models!');
+            console.log('🎉 Demo loaded');
         }
         
         // Reset camera to default position
         function resetCamera() {
             if (viewer) {
                 viewer.cameraOrbit = "45deg 55deg 3.5m";
-                // Small flash animation
                 viewer.style.transition = 'filter 0.3s';
                 viewer.style.filter = 'brightness(1.4)';
                 setTimeout(() => {
@@ -549,7 +563,7 @@
             }
         }
         
-        // Auto-run when page loads
+        // Auto-run
         window.onload = initialize;
     </script>
 </body>
