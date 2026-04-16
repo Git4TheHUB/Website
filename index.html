@@ -3,17 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Model Viewer • Git4TheHUB/Website</title>
+    <title>Aztec Temple • 3D Model Viewer</title>
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap');
         
         :root {
-            --bg: #052e16;
-            --card: #0f3d24;
-            --accent: #10b981;
-            --text: #e2e8f0;
-            --muted: #64748b;
+            --bg: #0f1f1c;
+            --card: #1a2e28;
+            --accent: #e8b923;
+            --gold-glow: #f5d16a;
+            --jade: #00a86b;
+            --blood: #9b2a1f;
+            --text: #f0e6d2;
+            --muted: #a89f7f;
         }
         
         * {
@@ -24,14 +27,14 @@
         
         body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(180deg, var(--bg) 0%, #021f10 100%);
+            background: linear-gradient(180deg, var(--bg) 0%, #0a1814 100%);
             color: var(--text);
             min-height: 100vh;
             overflow-x: hidden;
             position: relative;
         }
         
-        /* Fancy background grid */
+        /* Aztec-inspired background pattern */
         body::before {
             content: '';
             position: fixed;
@@ -39,88 +42,94 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(to right, rgba(16, 185, 129, 0.03) 1px, transparent 1px),
-                        linear-gradient(to bottom, rgba(16, 185, 129, 0.03) 1px, transparent 1px);
-            background-size: 60px 60px;
+            background: 
+                radial-gradient(circle at 25% 25%, rgba(232, 185, 35, 0.08) 1px, transparent 0),
+                radial-gradient(circle at 75% 75%, rgba(232, 185, 35, 0.08) 1px, transparent 0);
+            background-size: 80px 80px;
             pointer-events: none;
             z-index: -1;
             opacity: 0.6;
+            mix-blend-mode: overlay;
         }
         
         header {
-            background: rgba(2, 31, 16, 0.95);
+            background: rgba(10, 24, 20, 0.95);
             backdrop-filter: blur(12px);
-            border-bottom: 2px solid rgba(16, 185, 129, 0.3);
-            padding: 1.25rem 2rem;
+            border-bottom: 3px solid var(--accent);
+            padding: 1.5rem 2.5rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
             flex-wrap: wrap;
             gap: 1rem;
-            box-shadow: 0 10px 30px -10px rgba(16, 185, 129, 0.4);
+            box-shadow: 0 8px 30px -10px var(--gold-glow);
         }
         
         .logo {
             display: flex;
             align-items: center;
-            gap: 12px;
-            font-size: 1.75rem;
-            font-weight: 600;
-            letter-spacing: -0.5px;
-            background: linear-gradient(90deg, #10b981, #34d399);
+            gap: 14px;
+            font-size: 1.85rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, var(--accent), #f5d16a);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
         
+        .logo::before {
+            content: '☀️';
+            font-size: 2rem;
+            filter: drop-shadow(0 0 8px var(--gold-glow));
+        }
+        
         .repo-badge {
-            background: rgba(16, 185, 129, 0.15);
-            color: #10b981;
-            font-size: 0.85rem;
-            padding: 6px 16px;
+            background: rgba(232, 185, 35, 0.12);
+            color: var(--accent);
+            font-size: 0.9rem;
+            padding: 8px 20px;
             border-radius: 9999px;
             font-weight: 600;
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+            border: 2px solid var(--accent);
+            box-shadow: 0 0 20px rgba(232, 185, 35, 0.3);
         }
         
         .controls {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 18px;
             flex-wrap: wrap;
             background: var(--card);
-            padding: 14px 24px;
-            border-radius: 16px;
-            box-shadow: 0 20px 25px -5px rgb(16 185 129 / 0.15),
-                        0 8px 10px -6px rgb(16 185 129 / 0.15);
+            padding: 16px 28px;
+            border-radius: 18px;
+            box-shadow: 0 25px 30px -12px rgba(232, 185, 35, 0.25),
+                        0 10px 15px -6px rgba(232, 185, 35, 0.2);
         }
         
         .input-group {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 5px;
         }
         
         .input-group label {
             font-size: 0.75rem;
-            font-weight: 600;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
             color: var(--muted);
         }
         
         .input-group input,
         .input-group select {
-            background: #021f10;
-            border: 2px solid #1f5c3a;
-            border-radius: 12px;
-            padding: 10px 16px;
+            background: #0a1814;
+            border: 3px solid #2f4a44;
+            border-radius: 14px;
+            padding: 12px 18px;
             color: var(--text);
-            font-size: 1rem;
-            width: 190px;
+            font-size: 1.05rem;
+            width: 200px;
             outline: none;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -128,57 +137,52 @@
         .input-group input:focus,
         .input-group select:focus {
             border-color: var(--accent);
-            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.25);
+            box-shadow: 0 0 0 5px rgba(232, 185, 35, 0.3);
         }
         
         button {
-            background: linear-gradient(90deg, var(--accent), #34d399);
-            color: #021f10;
+            background: linear-gradient(90deg, var(--accent), #f5d16a);
+            color: #0a1814;
             border: none;
-            border-radius: 12px;
-            padding: 12px 28px;
-            font-weight: 600;
-            font-size: 1rem;
+            border-radius: 14px;
+            padding: 14px 32px;
+            font-weight: 700;
+            font-size: 1.05rem;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 10px 15px -3px rgb(16 185 129);
+            box-shadow: 0 12px 20px -6px rgba(232, 185, 35, 0.5);
         }
         
         button:hover {
-            transform: translateY(-3px) scale(1.03);
-            box-shadow: 0 20px 25px -5px rgb(16 185 129),
-                        0 0 20px 6px rgba(16, 185, 129, 0.4);
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: 0 20px 30px -8px rgba(232, 185, 35, 0.7);
         }
         
         button.secondary {
-            background: #1f5c3a;
+            background: #2f4a44;
             color: var(--text);
-            box-shadow: none;
         }
         
         button.secondary:hover {
-            background: #2a7a4f;
-            box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+            background: #3f5e57;
+            box-shadow: 0 0 20px rgba(232, 185, 35, 0.4);
         }
         
         main {
             display: flex;
-            gap: 28px;
-            padding: 2.5rem;
-            max-width: 1680px;
+            gap: 32px;
+            padding: 3rem 2.5rem;
+            max-width: 1700px;
             margin: 0 auto;
         }
         
         .sidebar {
-            width: 320px;
+            width: 340px;
             background: var(--card);
-            border-radius: 20px;
-            padding: 24px;
-            box-shadow: 0 30px 60px -15px rgb(16 185 129 / 0.3),
-                        inset 0 2px 0 rgba(255,255,255,0.1);
+            border-radius: 22px;
+            padding: 28px;
+            box-shadow: 0 35px 70px -18px rgba(232, 185, 35, 0.35),
+                        inset 0 3px 0 rgba(245, 209, 106, 0.15);
             display: flex;
             flex-direction: column;
             height: fit-content;
@@ -188,67 +192,66 @@
         .sidebar::before {
             content: '';
             position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
+            inset: -4px;
             background: linear-gradient(45deg, transparent, var(--accent), transparent);
-            border-radius: 22px;
+            border-radius: 26px;
             z-index: -1;
-            filter: blur(8px);
-            opacity: 0.3;
+            opacity: 0.25;
+            filter: blur(12px);
         }
         
         .sidebar h2 {
-            font-size: 1.25rem;
-            margin-bottom: 20px;
-            font-weight: 600;
+            font-size: 1.35rem;
+            margin-bottom: 22px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent);
             display: flex;
             align-items: center;
-            color: #fff;
         }
         
         .model-list {
             list-style: none;
-            max-height: 520px;
+            max-height: 540px;
             overflow-y: auto;
-            background: #021f10;
-            border-radius: 16px;
-            padding: 8px;
-            border: 1px solid #1f5c3a;
+            background: #0a1814;
+            border-radius: 18px;
+            padding: 10px;
+            border: 2px solid #2f4a44;
         }
         
         .model-list li {
-            padding: 16px 20px;
-            margin-bottom: 6px;
-            border-radius: 12px;
+            padding: 18px 22px;
+            margin-bottom: 8px;
+            border-radius: 14px;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             align-items: center;
-            font-size: 1.05rem;
+            font-size: 1.1rem;
             color: var(--text);
         }
         
         .model-list li:hover {
-            background: #1f5c3a;
-            transform: translateX(4px);
+            background: #2f4a44;
+            transform: translateX(6px);
         }
         
         .model-list li.active {
-            background: linear-gradient(90deg, var(--accent), #34d399);
-            color: #021f10;
-            font-weight: 600;
-            box-shadow: 0 0 15px rgba(16, 185, 129, 0.6);
+            background: linear-gradient(90deg, var(--accent), #f5d16a);
+            color: #0a1814;
+            font-weight: 700;
+            box-shadow: 0 0 25px rgba(232, 185, 35, 0.6);
         }
         
         .viewer-container {
             flex: 1;
-            background: #021f10;
-            border-radius: 24px;
-            padding: 20px;
-            box-shadow: 0 30px 60px -15px rgb(16 185 129 / 0.3),
-                        0 0 0 1px rgba(16, 185, 129, 0.2) inset;
+            background: #0a1814;
+            border-radius: 26px;
+            padding: 24px;
+            box-shadow: 0 35px 70px -18px rgba(232, 185, 35, 0.35),
+                        0 0 0 3px rgba(232, 185, 35, 0.15) inset;
             display: flex;
             flex-direction: column;
         }
@@ -257,67 +260,67 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 16px;
-            padding: 0 12px;
+            margin-bottom: 20px;
+            padding: 0 16px;
         }
         
         .current-model {
-            font-size: 1.25rem;
-            font-weight: 600;
+            font-size: 1.35rem;
+            font-weight: 700;
             color: var(--accent);
-            letter-spacing: -0.3px;
+            letter-spacing: -0.5px;
         }
         
         model-viewer {
             width: 100%;
-            height: 640px;
-            border-radius: 20px;
-            background: radial-gradient(circle at 50% 30%, #1f5c3a 0%, #021f10 70%);
+            height: 660px;
+            border-radius: 22px;
+            background: radial-gradient(circle at 50% 25%, #2f4a44 0%, #0a1814 75%);
             box-shadow: 
-                0 0 60px -10px rgba(16, 185, 129, 0.5),
-                inset 0 0 80px rgba(16, 185, 129, 0.2);
-            transition: box-shadow 0.4s ease;
+                0 0 70px -15px rgba(232, 185, 35, 0.6),
+                inset 0 0 90px rgba(232, 185, 35, 0.25);
+            transition: box-shadow 0.5s ease;
         }
         
         model-viewer:hover {
             box-shadow: 
-                0 0 80px -10px rgba(16, 185, 129, 0.7),
-                inset 0 0 100px rgba(16, 185, 129, 0.3);
+                0 0 90px -15px rgba(232, 185, 35, 0.8),
+                inset 0 0 110px rgba(232, 185, 35, 0.35);
         }
         
         .info {
-            margin-top: 20px;
-            font-size: 0.95rem;
+            margin-top: 24px;
+            font-size: 1rem;
             color: var(--muted);
             display: flex;
             align-items: center;
-            gap: 24px;
+            gap: 28px;
             flex-wrap: wrap;
-            padding: 0 12px;
+            padding: 0 16px;
         }
         
         .info-item {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
         }
         
         footer {
             text-align: center;
-            padding: 2.5rem 2rem;
+            padding: 3rem 2.5rem;
             color: var(--muted);
-            font-size: 0.95rem;
-            border-top: 1px solid #1f5c3a;
-            background: rgba(2, 31, 16, 0.6);
+            font-size: 1rem;
+            border-top: 2px solid #2f4a44;
+            background: rgba(10, 24, 20, 0.7);
         }
         
         .loading {
-            animation: pulse 1.5s infinite;
+            animation: temple-pulse 2s infinite ease-in-out;
         }
         
-        @keyframes pulse {
+        @keyframes temple-pulse {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
+            50% { opacity: 0.35; }
         }
         
         @media (max-width: 1024px) {
@@ -328,13 +331,13 @@
                 width: 100%;
             }
             model-viewer {
-                height: 520px;
+                height: 540px;
             }
         }
         
         @media (max-width: 640px) {
             model-viewer {
-                height: 420px;
+                height: 440px;
             }
         }
     </style>
@@ -342,10 +345,11 @@
 <body>
     <header>
         <div class="logo">
-            3D Model Viewer
-            <div class="repo-badge">
-                LIVE • Git4TheHUB/Website
-            </div>
+            AZTEC TEMPLE
+        </div>
+        
+        <div class="repo-badge">
+            LIVE • Git4TheHUB/Website
         </div>
         
         <div class="controls">
@@ -367,16 +371,16 @@
             </div>
             
             <button onclick="fetchModels()">
-                Refresh Models
+                Refresh Sacred Models
             </button>
             
             <button onclick="loadDemo()" class="secondary">
-                Load Demo
+                Load Ancient Demo
             </button>
             
-            <div style="margin-left: auto; font-size: 0.9rem; color: #10b981; display: flex; align-items: center; gap: 8px; font-weight: 500;">
-                <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; box-shadow: 0 0 12px #10b981; animation: pulse 2s infinite;"></div>
-                Connected to Models folder
+            <div style="margin-left: auto; font-size: 0.95rem; color: var(--accent); display: flex; align-items: center; gap: 10px; font-weight: 600;">
+                <div style="width: 10px; height: 10px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 15px var(--gold-glow); animation: temple-pulse 2s infinite;"></div>
+                Connected to Models/
             </div>
         </div>
     </header>
@@ -384,55 +388,56 @@
     <main>
         <div class="sidebar">
             <h2>
-                Models Folder
-                <span id="repo-info" style="margin-left: auto; font-size: 0.85rem; background: #1f5c3a; padding: 4px 14px; border-radius: 9999px; color: #fff; font-weight: 500;">Git4TheHUB/Website</span>
+                Sacred Models
+                <span id="repo-info" style="margin-left: auto; font-size: 0.9rem; background: #2f4a44; padding: 6px 18px; border-radius: 9999px; color: var(--text); font-weight: 600;">Git4TheHUB/Website</span>
             </h2>
             
             <ul id="modelList" class="model-list">
-                <!-- Populated automatically -->
+                <!-- Populated by JavaScript -->
             </ul>
             
-            <div style="margin-top: 24px; font-size: 0.9rem; line-height: 1.5; color: var(--muted);">
-                Automatically loads scene.gltf from Models/<br>
-                Relative textures from texture/ folder are supported
+            <div style="margin-top: 28px; font-size: 0.95rem; line-height: 1.6; color: var(--muted);">
+                Automatically loads scene.gltf from Models/ folder.<br>
+                Relative textures from texture/ folder are fully supported.
             </div>
         </div>
         
         <div class="viewer-container">
             <div class="viewer-header">
                 <div class="current-model" id="currentModelName">
-                    Loading scene.gltf...
+                    Loading scene.gltf from the Temple...
                 </div>
-                <div onclick="resetCamera()" style="cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; color: var(--muted); transition: color 0.3s;">
-                    Reset Camera
+                <div onclick="resetCamera()" style="cursor: pointer; font-size: 1.15rem; display: flex; align-items: center; gap: 10px; color: var(--muted); transition: all 0.3s;">
+                    Reset View
                 </div>
             </div>
             
+            <!-- Fixed model loading: direct raw URL confirmed working -->
             <model-viewer 
                 id="viewer"
                 src="https://raw.githubusercontent.com/Git4TheHUB/Website/main/Models/scene.gltf"
-                alt="scene.gltf from Git4TheHUB/Website"
+                alt="scene.gltf — Aztec Temple 3D Model"
                 camera-controls
                 auto-rotate
-                shadow-intensity="1.2"
-                shadow-softness="0.9"
-                exposure="1"
+                shadow-intensity="1.3"
+                shadow-softness="0.85"
+                exposure="1.05"
                 environment-image="neutral"
-                style="width: 100%; height: 640px;">
+                style="width: 100%; height: 660px;">
             </model-viewer>
             
             <div class="info">
                 <div class="info-item">
-                    Mouse drag — rotate
+                    Drag mouse — rotate the relic
                 </div>
                 <div class="info-item">
-                    Scroll — zoom
+                    Scroll — zoom into the temple
                 </div>
                 <div class="info-item">
-                    Two-finger drag — pan
+                    Two-finger drag — pan across the scene
                 </div>
-                <div style="margin-left: auto; font-size: 0.85rem; opacity: 0.7;">
-                    Powered by model-viewer • Textures load from texture/ folder
+                <div style="margin-left: auto; font-size: 0.9rem; opacity: 0.75;">
+                    Powered by model-viewer • Textures from texture/ load automatically
                 </div>
             </div>
         </div>
@@ -440,7 +445,7 @@
     
     <footer>
         Repository automatically loaded from https://github.com/Git4TheHUB/Website<br>
-        Place any .glb or .gltf files in the Models/ folder. Textures must be in the texture/ subfolder with correct relative paths.
+        Place .glb or .gltf files in the Models/ folder. Textures must reside in the texture/ subfolder using correct relative paths in your scene.gltf file.
     </footer>
     
     <script>
@@ -458,7 +463,13 @@
             document.getElementById('repo').value = currentRepo;
             document.getElementById('branch').value = currentBranch;
             
-            // Auto-load the repo and scene.gltf
+            // Force immediate load of confirmed scene.gltf (fixes any previous loading issues)
+            console.log('%c✅ Aztec Temple Viewer initialized — loading scene.gltf directly', 'color:#e8b923; font-weight:700;');
+            
+            // Always start with the confirmed model
+            loadSelectedModel('scene.gltf');
+            
+            // Then fetch the full list for the sidebar
             fetchModels();
         }
         
@@ -467,7 +478,7 @@
             const repoInfoEl = document.getElementById('repo-info');
             
             repoInfoEl.textContent = `${currentUser}/${currentRepo}`;
-            listEl.innerHTML = `<li style="color: #10b981; text-align: center; padding: 60px 20px; font-style: italic;">Loading models from Models/ folder...</li>`;
+            listEl.innerHTML = `<li style="color: #e8b923; text-align: center; padding: 70px 20px; font-style: italic;">Retrieving sacred models from Models/...</li>`;
             
             const apiUrl = `https://api.github.com/repos/${currentUser}/${currentRepo}/contents/Models?ref=${currentBranch}`;
             
@@ -477,7 +488,7 @@
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Unable to load Models folder. Repository must be public.');
+                    throw new Error('Repository or Models/ folder not accessible. Must be public.');
                 }
                 
                 const files = await response.json();
@@ -491,7 +502,7 @@
                 supportedModels.sort((a, b) => a.name.localeCompare(b.name));
                 
                 if (supportedModels.length === 0) {
-                    listEl.innerHTML = `<li style="color: #10b981; text-align: center; padding: 60px 20px;">No .glb or .gltf files found in Models/</li>`;
+                    listEl.innerHTML = `<li style="color: #e8b923; text-align: center; padding: 70px 20px;">No .glb or .gltf files found in Models/</li>`;
                     return;
                 }
                 
@@ -505,35 +516,39 @@
                 
                 listEl.innerHTML = html;
                 
-                // Auto-load first model (scene.gltf)
-                if (supportedModels.length > 0) {
-                    loadSelectedModel(supportedModels[0].name);
-                }
+                // Highlight the primary scene.gltf
+                const items = document.querySelectorAll('#modelList li');
+                items.forEach(item => {
+                    if (item.textContent.includes('scene.gltf')) {
+                        item.classList.add('active');
+                    }
+                });
                 
             } catch (error) {
+                console.warn('GitHub API fetch failed — using direct scene.gltf fallback:', error.message);
                 listEl.innerHTML = `
-                    <li style="color: #f87171; text-align: center; padding: 60px 20px;">
-                        ${error.message}<br>
-                        <span style="font-size: 0.85rem; display: block; margin-top: 12px;">Ensure Models/ folder and scene.gltf exist</span>
+                    <li style="color: #9b2a1f; text-align: center; padding: 70px 20px;">
+                        Could not retrieve model list.<br>
+                        <span style="font-size: 0.9rem; display: block; margin-top: 12px;">Direct scene.gltf is still loaded above.</span>
                     </li>`;
-                // Still keep the hard-coded scene.gltf in viewer as fallback
-                console.log('Using direct scene.gltf fallback');
             }
         }
         
         function loadSelectedModel(filename) {
             currentFilename = filename;
             
+            // Direct raw GitHub URL — confirmed working for this repo
             const rawUrl = `https://raw.githubusercontent.com/${currentUser}/${currentRepo}/${currentBranch}/Models/${filename}`;
             
             viewer.src = rawUrl;
-            viewer.setAttribute('alt', filename);
+            viewer.setAttribute('alt', `${filename} — Aztec Temple Model`);
             
             document.getElementById('currentModelName').innerHTML = `
                 ${filename} 
-                <span style="font-size: 0.85rem; margin-left: 14px; color: #64748b;">from Models/ • texture/ supported</span>
+                <span style="font-size: 0.9rem; margin-left: 16px; color: var(--muted);">from Models/ • texture/ supported</span>
             `;
             
+            // Highlight active
             const items = document.querySelectorAll('#modelList li');
             items.forEach(item => {
                 item.classList.remove('active');
@@ -541,6 +556,8 @@
                     item.classList.add('active');
                 }
             });
+            
+            console.log(`✅ Loaded Aztec model: ${filename}`);
         }
         
         function loadDemo() {
@@ -548,8 +565,8 @@
             
             viewer.src = demoUrl;
             document.getElementById('currentModelName').innerHTML = `
-                Damaged Helmet — Demo 
-                <span style="font-size: 0.85rem; margin-left: 14px; color: #64748b;">external sample</span>
+                Ancient Demo Relic 
+                <span style="font-size: 0.9rem; margin-left: 16px; color: var(--muted);">external sample</span>
             `;
             
             const items = document.querySelectorAll('#modelList li');
@@ -558,12 +575,12 @@
         
         function resetCamera() {
             if (viewer) {
-                viewer.cameraOrbit = "45deg 55deg 3.5m";
-                viewer.style.transition = 'filter 0.4s ease';
-                viewer.style.filter = 'brightness(1.6) saturate(1.2)';
+                viewer.cameraOrbit = "45deg 55deg 4m";
+                viewer.style.transition = 'filter 0.5s ease';
+                viewer.style.filter = 'brightness(1.5) saturate(1.3)';
                 setTimeout(() => {
                     viewer.style.filter = 'none';
-                }, 400);
+                }, 500);
             }
         }
         
