@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub 3D Models • Interactive Viewer</title>
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap');
+        
+        :root {
+            --bg: #0f172a;
+            --card: #1e2937;
+            --accent: #22d3ee;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: #e2e8f0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        header {
+            background: #020617;
+            border-bottom: 1px solid #334155;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .logo span {
+            background: linear-gradient(90deg, #22d3ee, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            background: var(--card);
+            padding: 12px 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .input-group label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748b;
+        }
+        
+        .input-group input,
+        .input-group select {
+            background: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            padding: 8px 14px;
+            color: white;
+            font-size: 1rem;
+            width: 180px;
+            outline: none;
+            transition: all 0.2s;
+        }
+        
+        .input-group input:focus,
+        .input-group select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
+        }
+        
+        button {
+            background: var(--accent);
+            color: #0f172a;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 24px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgb(34 211 238);
+        }
+        
+        button.secondary {
+            background: #334155;
+            color: #e2e8f0;
+        }
+        
+        main {
+            display: flex;
+            gap: 24px;
+            padding: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .sidebar {
+            width: 300px;
+            background: var(--card);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+            display: flex;
+            flex-direction: column;
+            height: fit-content;
+        }
+        
+        .sidebar h2 {
+            font-size: 1.1rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .model-list {
+            list-style: none;
+            max-height: 520px;
+            overflow-y: auto;
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 8px;
+        }
+        
+        .model-list li {
+            padding: 14px 16px;
+            margin-bottom: 4px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1rem;
+        }
+        
+        .model-list li:hover {
+            background: #1e2937;
+        }
+        
+        .model-list li.active {
+            background: #22d3ee;
+            color: #0f172a;
+            font-weight: 600;
+        }
+        
+        .model-list li .file-icon {
+            font-size: 1.3rem;
+        }
+        
+        .viewer-container {
+            flex: 1;
+            background: #020617;
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .viewer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 0 8px;
+        }
+        
+        .current-model {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #22d3ee;
+        }
+        
+        model-viewer {
+            width: 100%;
+            height: 620px;
+            border-radius: 16px;
+            background: radial-gradient(circle at center, #1e2937 0%, #020617 80%);
+            box-shadow: inset 0 0 80px rgba(34, 211, 238, 0.15);
+        }
+        
+        .info {
+            margin-top: 16px;
+            font-size: 0.9rem;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+            font-size: 0.9rem;
+            border-top: 1px solid #334155;
+        }
+        
+        @media (max-width: 1024px) {
+            main {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+            }
+            model-viewer {
+                height: 520px;
+            }
+        }
+        
+        @media (max-width: 640px) {
+            model-viewer {
+                height: 420px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <span>🧊</span>
+            GitHub 3D Models
+        </div>
+        
+        <div class="controls">
+            <!-- GitHub repo inputs -->
+            <div class="input-group">
+                <label>GitHub Username</label>
+                <input type="text" id="username" placeholder="your-username" value="">
+            </div>
+            
+            <div class="input-group">
+                <label>Repository</label>
+                <input type="text" id="repo" placeholder="your-repo-name" value="">
+            </div>
+            
+            <div class="input-group">
+                <label>Branch</label>
+                <select id="branch">
+                    <option value="main" selected>main</option>
+                    <option value="master">master</option>
+                </select>
+            </div>
+            
+            <button onclick="fetchModels()">
+                <span>🔄</span>
+                Fetch Models
+            </button>
+            
+            <button onclick="loadDemo()" class="secondary">
+                <span>🚀</span>
+                Load Demo Model
+            </button>
+            
+            <div style="margin-left: auto; font-size: 0.85rem; color: #64748b; display: flex; align-items: center; gap: 8px;">
+                <div style="width: 8px; height: 8px; background: #22d3ee; border-radius: 50%; animation: pulse 2s infinite;"></div>
+                Ready to view your Models/ folder
+            </div>
+        </div>
+    </header>
+    
+    <main>
+        <!-- Sidebar: Model list -->
+        <div class="sidebar">
+            <h2>
+                📁 Models/
+                <span id="repo-info" style="margin-left: auto; font-size: 0.85rem; background: #334155; padding: 2px 10px; border-radius: 9999px; color: #e2e8f0;"></span>
+            </h2>
+            
+            <ul id="modelList" class="model-list">
+                <!-- Populated by JavaScript -->
+                <li style="color:#64748b; text-align:center; padding: 40px 20px; font-style:italic;">
+                    Enter your GitHub username + repo above<br>
+                    and click "Fetch Models" to see everything<br>
+                    in your <strong>Models</strong> folder
+                </li>
+            </ul>
+            
+            <div style="margin-top: 20px; font-size: 0.8rem; line-height: 1.4; color: #64748b;">
+                ✅ Supports <strong>.glb</strong> and <strong>.gltf</strong><br>
+                ✅ Put any 3D models in your repo's <strong>Models/</strong> folder<br>
+                ✅ Works on GitHub Pages instantly
+            </div>
+        </div>
+        
+        <!-- 3D Viewer -->
+        <div class="viewer-container">
+            <div class="viewer-header">
+                <div class="current-model" id="currentModelName">
+                    Damaged Helmet — Demo
+                </div>
+                <div onclick="resetCamera()" style="cursor:pointer; font-size:1.1rem; display:flex; align-items:center; gap:6px; color:#64748b;">
+                    🔄 Reset camera
+                </div>
+            </div>
+            
+            <!-- The actual 3D model viewer -->
+            <model-viewer 
+                id="viewer"
+                src="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb"
+                alt="3D Model from your GitHub Models folder"
+                camera-controls
+                auto-rotate
+                shadow-intensity="1"
+                shadow-softness="0.8"
+                exposure="0.9"
+                environment-image="neutral"
+                style="width: 100%; height: 620px;">
+            </model-viewer>
+            
+            <div class="info">
+                <div class="info-item">
+                    <span style="font-size:1.3rem;">🖱️</span>
+                    Drag — rotate
+                </div>
+                <div class="info-item">
+                    <span style="font-size:1.3rem;">🔄</span>
+                    Scroll — zoom
+                </div>
+                <div class="info-item">
+                    <span style="font-size:1.3rem;">📱</span>
+                    Two-finger drag — pan
+                </div>
+                <div style="margin-left:auto; font-size:0.75rem; opacity:0.6;">
+                    Powered by Google model-viewer • Works with any public GitHub repo
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        📍 Drop your 3D models in a folder called <strong>Models</strong> in your GitHub repository.<br>
+        Deploy this file as <strong>index.html</strong> to GitHub Pages and you're live in seconds.<br>
+        <span style="font-size:0.75rem; opacity:0.5;">Made for you with ❤️ • Fully standalone HTML • No backend needed</span>
+    </footer>
+    
+    <script>
+        // Main 3D viewer element
+        let viewer = null;
+        let currentUser = '';
+        let currentRepo = '';
+        let currentBranch = 'main';
+        let currentFilename = '';
+        
+        // Initialize when page loads
+        function initialize() {
+            viewer = document.getElementById('viewer');
+            
+            console.log('%c🚀 GitHub 3D Model Viewer ready!', 'color:#22d3ee; font-size:1.1rem; font-weight:600;');
+            
+            // Keyboard shortcut hint
+            document.addEventListener('keydown', function(e) {
+                if (e.metaKey && e.key === 'k') {
+                    e.preventDefault();
+                    document.getElementById('username').focus();
+                }
+            });
+        }
+        
+        // Fetch list of models from GitHub API
+        async function fetchModels() {
+            currentUser = document.getElementById('username').value.trim();
+            currentRepo = document.getElementById('repo').value.trim();
+            currentBranch = document.getElementById('branch').value;
+            
+            const listEl = document.getElementById('modelList');
+            const repoInfoEl = document.getElementById('repo-info');
+            
+            if (!currentUser || !currentRepo) {
+                listEl.innerHTML = `
+                    <li style="color:#f87171; text-align:center; padding:40px 20px;">
+                        ⚠️ Please enter your GitHub username and repository name
+                    </li>`;
+                return;
+            }
+            
+            // Update UI
+            repoInfoEl.textContent = `${currentUser}/${currentRepo}`;
+            listEl.innerHTML = `<li style="color:#64748b; text-align:center; padding:60px 20px;">Fetching models from Models/ folder...</li>`;
+            
+            const apiUrl = `https://api.github.com/repos/${currentUser}/${currentRepo}/contents/Models?ref=${currentBranch}`;
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    headers: {
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    let msg = 'Repository not found or private';
+                    if (response.status === 404) msg = 'Models folder not found (create Models/ in your repo)';
+                    if (response.status === 403) msg = 'Rate limited or private repo';
+                    throw new Error(msg);
+                }
+                
+                const files = await response.json();
+                
+                // Filter only supported 3D formats
+                const supportedModels = files.filter(file => 
+                    file.type === 'file' && 
+                    (file.name.toLowerCase().endsWith('.glb') || 
+                     file.name.toLowerCase().endsWith('.gltf') || 
+                     file.name.toLowerCase().endsWith('.usdz'))
+                );
+                
+                // Sort alphabetically
+                supportedModels.sort((a, b) => a.name.localeCompare(b.name));
+                
+                if (supportedModels.length === 0) {
+                    listEl.innerHTML = `
+                        <li style="color:#64748b; text-align:center; padding:40px 20px;">
+                            No .glb, .gltf or .usdz files found in your Models/ folder.<br>
+                            <span style="font-size:0.85rem;">Add some 3D models and click "Fetch Models" again!</span>
+                        </li>`;
+                    return;
+                }
+                
+                // Build beautiful list
+                let html = '';
+                supportedModels.forEach(model => {
+                    html += `
+                    <li onclick="loadSelectedModel('${model.name}')" title="${model.name}">
+                        <span class="file-icon">📦</span>
+                        <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${model.name}</span>
+                        <span style="font-size:0.7rem; background:#334155; padding:2px 8px; border-radius:9999px;">${model.size ? (model.size/1024).toFixed(0)+'KB' : ''}</span>
+                    </li>`;
+                });
+                
+                listEl.innerHTML = html;
+                
+                // Auto-load the first model
+                if (supportedModels.length > 0) {
+                    loadSelectedModel(supportedModels[0].name);
+                }
+                
+            } catch (error) {
+                console.error(error);
+                listEl.innerHTML = `
+                    <li style="color:#f87171; text-align:center; padding:40px 20px;">
+                        ${error.message}<br>
+                        <small style="display:block; margin-top:12px; opacity:0.8;">
+                            Make sure your repo is public and the folder is exactly named <strong>Models</strong>
+                        </small>
+                    </li>`;
+            }
+        }
+        
+        // Load a model from your GitHub repo
+        function loadSelectedModel(filename) {
+            currentFilename = filename;
+            
+            // Build raw GitHub URL (always works)
+            const rawUrl = `https://raw.githubusercontent.com/${currentUser}/${currentRepo}/${currentBranch}/Models/${filename}`;
+            
+            viewer.src = rawUrl;
+            viewer.setAttribute('alt', filename);
+            
+            // Update UI
+            document.getElementById('currentModelName').innerHTML = `
+                📦 ${filename} 
+                <span style="font-size:0.8rem; margin-left:12px; color:#64748b;">from ${currentUser}/${currentRepo}</span>
+            `;
+            
+            // Highlight active item in list
+            const items = document.querySelectorAll('#modelList li');
+            items.forEach(item => {
+                item.classList.remove('active');
+                if (item.textContent.includes(filename)) {
+                    item.classList.add('active');
+                }
+            });
+            
+            console.log(`✅ Loaded: ${filename}`);
+        }
+        
+        // Load a beautiful demo model instantly (no GitHub needed)
+        function loadDemo() {
+            const demoUrl = "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb";
+            
+            viewer.src = demoUrl;
+            document.getElementById('currentModelName').innerHTML = `
+                🚀 Damaged Helmet — Demo Model 
+                <span style="font-size:0.8rem; margin-left:12px; color:#64748b;">(Khronos glTF sample)</span>
+            `;
+            
+            // Clear list highlight
+            const items = document.querySelectorAll('#modelList li');
+            items.forEach(item => item.classList.remove('active'));
+            
+            console.log('🎉 Demo model loaded — now try your own models!');
+        }
+        
+        // Reset camera to default position
+        function resetCamera() {
+            if (viewer) {
+                viewer.cameraOrbit = "45deg 55deg 3.5m";
+                // Small flash animation
+                viewer.style.transition = 'filter 0.3s';
+                viewer.style.filter = 'brightness(1.4)';
+                setTimeout(() => {
+                    viewer.style.filter = 'none';
+                }, 300);
+            }
+        }
+        
+        // Auto-run when page loads
+        window.onload = initialize;
+    </script>
+</body>
+</html>
