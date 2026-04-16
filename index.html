@@ -1,40 +1,699 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aztec Temple • 3D Model Viewer</title>
-
-<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-
-:root {
-    --bg: #0f1f1c;
-    --card: #1a2e28;
-    --accent: #e8b923;
-    --text: #f0e6d2;
-    --muted: #a89f7f;
-}
-
-* { margin:0; padding:0; box-sizing:border-box; }
-
-body {
-    font-family: 'Inter', sans-serif;
-    background: linear-gradient(180deg, var(--bg), #0a1814);
-    color: var(--text);
-}
-
-/* HEADER */
-
-header {
-    background: rgba(10,24,20,0.95);
-    border-bottom: 3px solid var(--accent);
-    padding: 1.5rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Tracker • Gorilla Tag Style</title>
+    
+    <!-- MediaPipe Hand Tracking (required for real-time webcam tracking) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap');
+        
+        :root {
+            --bg: #052e16;
+            --card: #0f3d24;
+            --accent: #10b981;
+            --text: #e2e8f0;
+            --muted: #64748b;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(180deg, var(--bg) 0%, #021f10 100%);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        /* Fancy background grid */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, rgba(16, 185, 129, 0.03) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(16, 185, 129, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+            opacity: 0.6;
+        }
+        
+        header {
+            background: rgba(2, 31, 16, 0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 2px solid rgba(16, 185, 129, 0.3);
+            padding: 1.25rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            box-shadow: 0 10px 30px -10px rgba(16, 185, 129, 0.4);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.75rem;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            background: linear-gradient(90deg, #10b981, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .repo-badge {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            font-size: 0.85rem;
+            padding: 6px 16px;
+            border-radius: 9999px;
+            font-weight: 600;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+        }
+        
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            background: var(--card);
+            padding: 14px 24px;
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgb(16 185 129 / 0.15),
+                        0 8px 10px -6px rgb(16 185 129 / 0.15);
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .input-group label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--muted);
+        }
+        
+        .input-group input,
+        .input-group select {
+            background: #021f10;
+            border: 2px solid #1f5c3a;
+            border-radius: 12px;
+            padding: 10px 16px;
+            color: var(--text);
+            font-size: 1rem;
+            width: 190px;
+            outline: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .input-group input:focus,
+        .input-group select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.25);
+        }
+        
+        button {
+            background: linear-gradient(90deg, var(--accent), #34d399);
+            color: #021f10;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 28px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 10px 15px -3px rgb(16 185 129);
+        }
+        
+        button:hover {
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 20px 25px -5px rgb(16 185 129),
+                        0 0 20px 6px rgba(16, 185, 129, 0.4);
+        }
+        
+        button.secondary {
+            background: #1f5c3a;
+            color: var(--text);
+            box-shadow: none;
+        }
+        
+        button.secondary:hover {
+            background: #2a7a4f;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+        }
+        
+        main {
+            display: flex;
+            gap: 28px;
+            padding: 2.5rem;
+            max-width: 1680px;
+            margin: 0 auto;
+        }
+        
+        .sidebar {
+            width: 320px;
+            background: var(--card);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 30px 60px -15px rgb(16 185 129 / 0.3),
+                        inset 0 2px 0 rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            height: fit-content;
+            position: relative;
+        }
+        
+        .sidebar::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, transparent, var(--accent), transparent);
+            border-radius: 22px;
+            z-index: -1;
+            filter: blur(8px);
+            opacity: 0.3;
+        }
+        
+        .sidebar h2 {
+            font-size: 1.25rem;
+            margin-bottom: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            color: #fff;
+        }
+        
+        .info-box {
+            background: #021f10;
+            border-radius: 16px;
+            padding: 20px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: var(--muted);
+            border: 1px solid #1f5c3a;
+        }
+        
+        .viewer-container {
+            flex: 1;
+            background: #021f10;
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 30px 60px -15px rgb(16 185 129 / 0.3),
+                        0 0 0 1px rgba(16, 185, 129, 0.2) inset;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        
+        .viewer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding: 0 12px;
+        }
+        
+        .current-model {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--accent);
+            letter-spacing: -0.3px;
+        }
+        
+        #viewer-wrapper {
+            position: relative;
+            width: 100%;
+            height: 640px;
+            background: radial-gradient(circle at 50% 30%, #1f5c3a 0%, #021f10 70%);
+            border-radius: 20px;
+            box-shadow: 
+                0 0 60px -10px rgba(16, 185, 129, 0.5),
+                inset 0 0 80px rgba(16, 185, 129, 0.2);
+            overflow: hidden;
+        }
+        
+        #canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .camera-preview {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            width: 260px;
+            height: 195px;
+            background: #021f10;
+            border: 4px solid #10b981;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.6),
+                        inset 0 0 20px rgba(16, 185, 129, 0.3);
+            z-index: 10;
+        }
+        
+        .camera-preview video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror effect like Gorilla Tag */
+        }
+        
+        .camera-label {
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            background: rgba(16, 185, 129, 0.9);
+            color: #021f10;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 9999px;
+            z-index: 11;
+            letter-spacing: 0.5px;
+        }
+        
+        .info {
+            margin-top: 20px;
+            font-size: 0.95rem;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            padding: 0 12px;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 2.5rem 2rem;
+            color: var(--muted);
+            font-size: 0.95rem;
+            border-top: 1px solid #1f5c3a;
+            background: rgba(2, 31, 16, 0.6);
+        }
+        
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        
+        @media (max-width: 1024px) {
+            main {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+            }
+            #viewer-wrapper {
+                height: 520px;
+            }
+        }
+        
+        @media (max-width: 640px) {
+            #viewer-wrapper {
+                height: 420px;
+            }
+            .camera-preview {
+                width: 180px;
+                height: 135px;
+                bottom: 12px;
+                right: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            🦍 Hand Tracker
+            <div class="repo-badge">
+                LIVE • Gorilla Tag Style
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button onclick="toggleTracking()" id="startBtn">
+                <span id="btnText">Start Camera &amp; Tracking</span>
+            </button>
+            
+            <div class="input-group">
+                <label>Max Hands</label>
+                <select id="maxHands" onchange="updateOptions()">
+                    <option value="1" selected>1 Hand</option>
+                    <option value="2">2 Hands</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label>Model Quality</label>
+                <select id="modelComplexity" onchange="updateOptions()">
+                    <option value="0">Fast (Lite)</option>
+                    <option value="1" selected>Balanced</option>
+                    <option value="2">High Quality</option>
+                </select>
+            </div>
+            
+            <button onclick="resetView()" class="secondary">
+                Reset View
+            </button>
+            
+            <div class="status" id="status">
+                <div style="width: 8px; height: 8px; background: #f87171; border-radius: 50%;"></div>
+                Camera OFF
+            </div>
+        </div>
+    </header>
+    
+    <main>
+        <div class="sidebar">
+            <h2>Real-Time Hand Tracking</h2>
+            
+            <div class="info-box">
+                <strong>How it works:</strong><br>
+                • Your webcam feeds the corner preview<br>
+                • MediaPipe tracks 21 3D landmarks per hand<br>
+                • Green skeleton = 3D hand model (Gorilla Tag style)<br>
+                • Move your hand — watch it track instantly!
+            </div>
+            
+            <div style="margin-top: 24px; font-size: 0.9rem; line-height: 1.6; color: var(--muted);">
+                No GitHub loading.<br>
+                Pure browser hand tracking.<br><br>
+                Works best in Chrome • Allow camera access
+            </div>
+            
+            <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid #1f5c3a; font-size: 0.85rem; color: #10b981;">
+                Powered by Google MediaPipe Hands
+            </div>
+        </div>
+        
+        <div class="viewer-container">
+            <div class="viewer-header">
+                <div class="current-model" id="currentModelName">
+                    Live 3D Hand Model
+                </div>
+                <div onclick="resetView()" style="cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; color: var(--muted); transition: color 0.3s;">
+                    Reset View
+                </div>
+            </div>
+            
+            <!-- 3D Hand Viewer + Camera Preview in corner -->
+            <div id="viewer-wrapper">
+                <canvas id="canvas"></canvas>
+                
+                <!-- Camera preview in the corner -->
+                <div class="camera-preview">
+                    <div class="camera-label">CAMERA PREVIEW</div>
+                    <video id="inputVideo" autoplay playsinline muted></video>
+                </div>
+            </div>
+            
+            <div class="info">
+                <div class="info-item">
+                    Move hand in front of camera
+                </div>
+                <div class="info-item">
+                    Green skeleton = tracked 3D hand
+                </div>
+                <div class="info-item">
+                    Mirror mode enabled
+                </div>
+                <div style="margin-left: auto; font-size: 0.85rem; opacity: 0.7;">
+                    Real-time • 21 3D landmarks • Gorilla Tag vibes
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        Browser-based hand tracking with MediaPipe • No GitHub repo loading • Pure 3D hand model visualization
+    </footer>
+    
+    <script>
+        // MediaPipe variables
+        let hands = null;
+        let camera = null;
+        let isTracking = false;
+        
+        // Canvas & video
+        let canvas, ctx, video;
+        
+        // Hand options
+        let maxNumHands = 1;
+        let modelComplexity = 1;
+        
+        const HAND_CONNECTIONS = [
+            // Thumb
+            [0,1], [1,2], [2,3], [3,4],
+            // Index
+            [0,5], [5,6], [6,7], [7,8],
+            // Middle
+            [0,9], [9,10], [10,11], [11,12],
+            // Ring
+            [0,13], [13,14], [14,15], [15,16],
+            // Pinky
+            [0,17], [17,18], [18,19], [19,20],
+            // Palm
+            [5,9], [9,13], [13,17]
+        ];
+        
+        function initialize() {
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+            video = document.getElementById('inputVideo');
+            
+            // Set canvas size (will be updated on resize)
+            updateCanvasSize();
+            window.addEventListener('resize', updateCanvasSize);
+            
+            // Create MediaPipe Hands instance
+            hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+            
+            hands.setOptions({
+                maxNumHands: maxNumHands,
+                modelComplexity: modelComplexity,
+                minDetectionConfidence: 0.7,
+                minTrackingConfidence: 0.7
+            });
+            
+            hands.onResults(onResults);
+            
+            console.log('%c✅ Hand tracker initialized (Gorilla Tag style)', 'color:#10b981; font-weight:600');
+        }
+        
+        function updateCanvasSize() {
+            const wrapper = document.getElementById('viewer-wrapper');
+            canvas.width = wrapper.clientWidth;
+            canvas.height = wrapper.clientHeight;
+        }
+        
+        function onResults(results) {
+            // Clear canvas with dark background for "3D model" look
+            ctx.save();
+            ctx.fillStyle = '#021f10';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Optional: very faint video feed in background (disabled for clean 3D look)
+            // ctx.globalAlpha = 0.15;
+            // ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            // ctx.globalAlpha = 1.0;
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                    const landmarks = results.multiHandLandmarks[i];
+                    
+                    // Draw connections (bones) - thick green for Gorilla Tag energy
+                    ctx.strokeStyle = '#10b981';
+                    ctx.lineWidth = 8;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    
+                    for (let connection of HAND_CONNECTIONS) {
+                        const start = landmarks[connection[0]];
+                        const end = landmarks[connection[1]];
+                        
+                        if (start && end) {
+                            const x1 = start.x * canvas.width;
+                            const y1 = start.y * canvas.height;
+                            const x2 = end.x * canvas.width;
+                            const y2 = end.y * canvas.height;
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(x1, y1);
+                            ctx.lineTo(x2, y2);
+                            ctx.stroke();
+                        }
+                    }
+                    
+                    // Draw landmarks (joints)
+                    ctx.fillStyle = '#fff';
+                    ctx.strokeStyle = '#052e16';
+                    ctx.lineWidth = 3;
+                    
+                    for (let j = 0; j < landmarks.length; j++) {
+                        const landmark = landmarks[j];
+                        const x = landmark.x * canvas.width;
+                        const y = landmark.y * canvas.height;
+                        
+                        // Bigger dots for fingertips
+                        const radius = (j === 4 || j === 8 || j === 12 || j === 16 || j === 20) ? 9 : 6;
+                        
+                        ctx.beginPath();
+                        ctx.arc(x, y, radius, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                    }
+                    
+                    // Extra glow on thumb & index (Gorilla Tag climbing feel)
+                    if (i === 0) { // only first hand gets accent
+                        ctx.shadowBlur = 20;
+                        ctx.shadowColor = '#34d399';
+                        ctx.fillStyle = '#34d399';
+                        ctx.fillRect(landmarks[4].x * canvas.width - 4, landmarks[4].y * canvas.height - 4, 8, 8);
+                        ctx.fillRect(landmarks[8].x * canvas.width - 4, landmarks[8].y * canvas.height - 4, 8, 8);
+                        ctx.shadowBlur = 0;
+                    }
+                }
+            } else {
+                // No hand detected - show subtle instruction
+                ctx.fillStyle = 'rgba(16, 185, 129, 0.3)';
+                ctx.font = '500 28px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText('👋 Show your hand to the camera', canvas.width / 2, canvas.height / 2);
+            }
+            
+            ctx.restore();
+        }
+        
+        async function toggleTracking() {
+            const btn = document.getElementById('startBtn');
+            const btnText = document.getElementById('btnText');
+            const statusEl = document.getElementById('status');
+            
+            if (!isTracking) {
+                // Start tracking
+                if (!camera) {
+                    camera = new Camera(video, {
+                        onFrame: async () => {
+                            if (hands) await hands.send({ image: video });
+                        },
+                        width: 1280,
+                        height: 720
+                    });
+                }
+                
+                try {
+                    await camera.start();
+                    isTracking = true;
+                    btn.style.background = 'linear-gradient(90deg, #f87171, #fb923c)';
+                    btnText.textContent = 'Stop Tracking';
+                    statusEl.innerHTML = `
+                        <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; box-shadow: 0 0 12px #10b981; animation: pulse 2s infinite;"></div>
+                        TRACKING LIVE
+                    `;
+                    console.log('%c🎥 Hand tracking started — Gorilla Tag style!', 'color:#10b981; font-size:1.1rem');
+                } catch (err) {
+                    alert('Camera access denied or not available. Please allow camera permission.');
+                    console.error(err);
+                }
+            } else {
+                // Stop tracking
+                if (camera) camera.stop();
+                isTracking = false;
+                btn.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
+                btnText.textContent = 'Start Camera & Tracking';
+                statusEl.innerHTML = `
+                    <div style="width: 8px; height: 8px; background: #f87171; border-radius: 50%;"></div>
+                    Camera OFF
+                `;
+                // Clear canvas
+                ctx.fillStyle = '#021f10';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+        
+        function updateOptions() {
+            if (!hands) return;
+            
+            maxNumHands = parseInt(document.getElementById('maxHands').value);
+            modelComplexity = parseInt(document.getElementById('modelComplexity').value);
+            
+            hands.setOptions({
+                maxNumHands: maxNumHands,
+                modelComplexity: modelComplexity,
+                minDetectionConfidence: 0.7,
+                minTrackingConfidence: 0.7
+            });
+            
+            // Restart camera if already running to apply new settings
+            if (isTracking && camera) {
+                camera.stop();
+                setTimeout(() => {
+                    camera.start();
+                }, 300);
+            }
+        }
+        
+        function resetView() {
+            if (canvas && ctx) {
+                ctx.fillStyle = '#021f10';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Optional flash effect
+                canvas.style.transition = 'filter 0.3s';
+                canvas.style.filter = 'brightness(1.8) saturate(1.4)';
+                setTimeout(() => {
+                    canvas.style.filter = 'none';
+                }, 300);
+            }
+        }
+        
+        // Auto-start initialization
+        window.onload = initialize;
+    </script>
+</body>
+</html>    gap: 1rem;
     align-items: flex-start;
 }
 
