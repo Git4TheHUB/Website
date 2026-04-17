@@ -21,29 +21,48 @@
     }
     .info {
         text-align: center;
-        font-size: 14px;
+        font-size: 15px;
+        line-height: 1.5;
     }
 </style>
 </head>
 <body>
 
 <div class="info">
-    PRESS <strong>E</strong> TO SPAWN MORE BOUNCING WEBCAM WINDOWS
+    PRESS <strong>E</strong> → NEW BOUNCING WINDOW<br>
+    PRESS <strong>+</strong> → FASTER<br>
+    PRESS <strong>-</strong> → SLOWER
 </div>
 
 <script>
-// Function to create one bouncing DVD window
+// Global list to control all windows
+let dvdWindows = [];
+
+// First request webcam on the main page (helps popups work in Chrome)
+let mainStream = null;
+navigator.mediaDevices.getUserMedia({ video: true })
+    .then(stream => {
+        mainStream = stream; // keep stream alive
+        console.log("Main page webcam ready");
+    })
+    .catch(err => {
+        console.error("Main webcam error:", err);
+    });
+
+// Function to spawn one bouncing window
 function spawnDvdWindow() {
-    const width = 280;   // Smaller window
-    const height = 160;  // Classic DVD aspect ratio, smaller size
+    const width = 280;
+    const height = 160;
 
     const dvdWin = window.open("", "dvdBouncer", 
         `width=${width},height=${height},left=300,top=200,resizable=no,scrollbars=no,menubar=no,toolbar=no,status=no`);
 
     if (!dvdWin) {
-        alert("Popup blocked! Please allow popups for this site.");
+        alert("Popup blocked! Please allow popups for this page.");
         return;
     }
+
+    dvdWindows.push(dvdWin);
 
     dvdWin.document.write(`
     <!DOCTYPE html>
@@ -52,34 +71,23 @@ function spawnDvdWindow() {
         <meta charset="UTF-8">
         <title>DVD</title>
         <style>
-            body, html {
-                margin: 0;
-                padding: 0;
-                overflow: hidden;
-                background: black;
-            }
-            #webcam {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-                display: block;
-            }
+            body, html { margin:0; padding:0; overflow:hidden; background:black; }
+            #webcam { width:100%; height:100%; object-fit:cover; display:block; }
         </style>
     </head>
     <body>
         <video id="webcam" autoplay playsinline muted></video>
 
         <script>
-            // Webcam
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => {
-                    document.getElementById('webcam').srcObject = stream;
-                })
-                .catch(err => console.error("Webcam error", err));
-
             let vx = 6.8;
             let vy = 4.9;
             let hue = 0;
+
+            // Expose speed control functions to parent window
+            window.setSpeed = function(multiplier) {
+                vx *= multiplier;
+                vy *= multiplier;
+            };
 
             function changeColor() {
                 hue = (hue + 45 + Math.random() * 90) % 360;
@@ -100,38 +108,35 @@ function spawnDvdWindow() {
                 const screenH = screen.availHeight;
 
                 let bounced = false;
+                if (x <= 0 || x + w >= screenW) { vx = -vx; bounced = true; }
+                if (y <= 0 || y + h >= screenH) { vy = -vy; bounced = true; }
 
-                if (x <= 0 || x + w >= screenW) {
-                    vx = -vx;
-                    bounced = true;
-                }
-                if (y <= 0 || y + h >= screenH) {
-                    vy = -vy;
-                    bounced = true;
-                }
-
-                if (bounced) {
-                    changeColor();
-                }
+                if (bounced) changeColor();
 
                 window.moveTo(Math.round(x), Math.round(y));
 
-                // Occasional speed variation
-                if (Math.random() < 0.035) {
-                    vx += (Math.random() - 0.5) * 1.8;
-                    vy += (Math.random() - 0.5) * 1.8;
+                // small random variation
+                if (Math.random() < 0.03) {
+                    vx += (Math.random() - 0.5) * 1.5;
+                    vy += (Math.random() - 0.5) * 1.5;
                 }
 
                 requestAnimationFrame(bounce);
             }
 
-            // Start bouncing
+            // Start webcam + bounce
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    document.getElementById('webcam').srcObject = stream;
+                })
+                .catch(() => {});
+
             setTimeout(() => {
-                const startX = Math.random() * (screen.availWidth - ${width} - 50);
-                const startY = Math.random() * (screen.availHeight - ${height} - 50);
+                const startX = Math.random() * (screen.availWidth - ${width} - 100);
+                const startY = Math.random() * (screen.availHeight - ${height} - 100);
                 window.moveTo(startX, startY);
                 bounce();
-            }, 300);
+            }, 400);
         <\/script>
     </body>
     </html>`);
@@ -139,18 +144,32 @@ function spawnDvdWindow() {
     dvdWin.document.close();
 }
 
-// Keyboard handler - Press E to spawn new window
+// Keyboard controls
 document.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'e') {
+    const key = e.key.toLowerCase();
+
+    if (key === 'e') {
         spawnDvdWindow();
+    }
+    else if (key === '+') {
+        // Speed up all windows
+        dvdWindows.forEach(win => {
+            if (!win.closed) win.setSpeed(1.25);
+        });
+    }
+    else if (key === '-') {
+        // Slow down all windows
+        dvdWindows.forEach(win => {
+            if (!win.closed) win.setSpeed(0.8);
+        });
     }
 });
 
-// Spawn the first window automatically
+// Auto spawn first window
 window.onload = () => {
     setTimeout(() => {
         spawnDvdWindow();
-    }, 500);
+    }, 600);
 };
 </script>
 
