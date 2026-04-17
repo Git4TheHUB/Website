@@ -1,195 +1,158 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DVD BOUNCER • Webcam</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #000;
-            color: #0f0;
-            font-family: 'Press Start 2P', system-ui;
-            overflow: hidden;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-        }
-        
-        .message {
-            color: #0f0;
-            font-size: 1.2rem;
-            text-shadow: 0 0 10px #0f0;
-            max-width: 80%;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>DVD Webcam Bouncer</title>
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #000;
+        height: 100vh;
+        width: 100vw;
+        color: white;
+        font-family: 'Press Start 2P', system-ui;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 20px;
+    }
+    .info {
+        text-align: center;
+        font-size: 14px;
+    }
+</style>
 </head>
 <body>
-    <div class="message">
-        Requesting camera access...<br>
-        <small style="color:#666;">Allow camera to start DVD Bouncer</small>
-    </div>
 
-    <script>
-        // Auto-launch after camera permission
-        async function startBouncer() {
-            try {
-                // Request camera permission first
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        width: { ideal: 640 }, 
-                        height: { ideal: 480 } 
-                    } 
-                });
+<div class="info">
+    PRESS <strong>E</strong> TO SPAWN MORE BOUNCING WEBCAM WINDOWS
+</div>
 
-                // Close this window once we have permission
-                window.close();
+<script>
+// Function to create one bouncing DVD window
+function spawnDvdWindow() {
+    const width = 280;   // Smaller window
+    const height = 160;  // Classic DVD aspect ratio, smaller size
 
-                // Small window size
-                const winWidth = 400;
-                const winHeight = 300;
+    const dvdWin = window.open("", "dvdBouncer", 
+        `width=${width},height=${height},left=300,top=200,resizable=no,scrollbars=no,menubar=no,toolbar=no,status=no`);
 
-                // Open the bouncing window
-                const popup = window.open(
-                    '',
-                    '_blank',
-                    `width=${winWidth},height=${winHeight},resizable=no,scrollbars=no,menubar=no,toolbar=no,location=no,status=no`
-                );
+    if (!dvdWin) {
+        alert("Popup blocked! Please allow popups for this site.");
+        return;
+    }
 
-                if (!popup) {
-                    alert("Popup blocked! Please allow popups and refresh the page.");
-                    return;
+    dvdWin.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>DVD</title>
+        <style>
+            body, html {
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+                background: black;
+            }
+            #webcam {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <video id="webcam" autoplay playsinline muted></video>
+
+        <script>
+            // Webcam
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    document.getElementById('webcam').srcObject = stream;
+                })
+                .catch(err => console.error("Webcam error", err));
+
+            let vx = 6.8;
+            let vy = 4.9;
+            let hue = 0;
+
+            function changeColor() {
+                hue = (hue + 45 + Math.random() * 90) % 360;
+                document.documentElement.style.filter = 
+                    \`hue-rotate(\${hue}deg) saturate(1.8) brightness(1.25)\`;
+            }
+
+            function bounce() {
+                let x = window.screenX;
+                let y = window.screenY;
+                const w = window.outerWidth;
+                const h = window.outerHeight;
+
+                x += vx;
+                y += vy;
+
+                const screenW = screen.availWidth;
+                const screenH = screen.availHeight;
+
+                let bounced = false;
+
+                if (x <= 0 || x + w >= screenW) {
+                    vx = -vx;
+                    bounced = true;
+                }
+                if (y <= 0 || y + h >= screenH) {
+                    vy = -vy;
+                    bounced = true;
                 }
 
-                // Self-contained bouncing webcam HTML
-                const popupHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>DVD BOUNCER</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-        body {
-            margin: 0;
-            padding: 0;
-            background: #000;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            image-rendering: pixelated;
-        }
-        video {
-            max-width: 90%;
-            max-height: 90%;
-            box-shadow: 0 0 30px #fff;
-            filter: hue-rotate(0deg);
-            transition: filter 0.4s ease;
-            object-fit: contain;
-        }
-        .corner {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            font-family: 'Press Start 2P';
-            font-size: 10px;
-            color: #fff;
-            opacity: 0.3;
-            pointer-events: none;
-        }
-    </style>
-</head>
-<body>
-    <video id="webcam" autoplay playsinline muted></video>
-    <div class="corner">DVD</div>
-   
-    <script>
-        const video = document.getElementById('webcam');
-       
-        let x = Math.random() * (screen.availWidth - 400);
-        let y = Math.random() * (screen.availHeight - 300);
-        let vx = (Math.random() * 8 + 4) * (Math.random() > 0.5 ? 1 : -1);
-        let vy = (Math.random() * 8 + 4) * (Math.random() > 0.5 ? 1 : -1);
-       
-        function randomHue() {
-            const hue = Math.random() * 360;
-            video.style.filter = \`hue-rotate(\${hue}deg)\`;
-        }
-       
-        function animate() {
-            const w = window.outerWidth;
-            const h = window.outerHeight;
-            const screenW = screen.availWidth;
-            const screenH = screen.availHeight;
-           
-            x += vx;
-            y += vy;
-           
-            let bounced = false;
-           
-            if (x <= 0 || x + w >= screenW) {
-                vx = -vx;
-                x = Math.max(0, Math.min(x, screenW - w));
-                bounced = true;
+                if (bounced) {
+                    changeColor();
+                }
+
+                window.moveTo(Math.round(x), Math.round(y));
+
+                // Occasional speed variation
+                if (Math.random() < 0.035) {
+                    vx += (Math.random() - 0.5) * 1.8;
+                    vy += (Math.random() - 0.5) * 1.8;
+                }
+
+                requestAnimationFrame(bounce);
             }
-           
-            if (y <= 0 || y + h >= screenH) {
-                vy = -vy;
-                y = Math.max(0, Math.min(y, screenH - h));
-                bounced = true;
-            }
-           
-            window.moveTo(Math.round(x), Math.round(y));
-           
-            if (bounced) {
-                randomHue();
-            }
-           
-            requestAnimationFrame(animate);
-        }
-       
-        window.onload = function() {
-            randomHue();
-            window.moveTo(Math.round(x), Math.round(y));
-            animate();
 
-            // Attach the webcam stream we already got
-            video.srcObject = stream;  // Note: stream is passed from parent
+            // Start bouncing
+            setTimeout(() => {
+                const startX = Math.random() * (screen.availWidth - ${width} - 50);
+                const startY = Math.random() * (screen.availHeight - ${height} - 50);
+                window.moveTo(startX, startY);
+                bounce();
+            }, 300);
+        <\/script>
+    </body>
+    </html>`);
 
-            console.log('%c🎉 DVD WEBCAM BOUNCER ACTIVATED', 'color:#0f0; font-family:monospace;');
-        };
-    </script>
-</body>
-</html>`;
+    dvdWin.document.close();
+}
 
-                // Write the HTML
-                popup.document.open();
-                popup.document.write(popupHTML);
-                popup.document.close();
-                popup.focus();
+// Keyboard handler - Press E to spawn new window
+document.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'e') {
+        spawnDvdWindow();
+    }
+});
 
-            } catch (err) {
-                console.error(err);
-                document.body.innerHTML = `
-                    <div style="color:#f00; font-size:1.1rem;">
-                        Camera access denied or unavailable.<br><br>
-                        Please allow camera permission and refresh the page.
-                    </div>`;
-            }
-        }
+// Spawn the first window automatically
+window.onload = () => {
+    setTimeout(() => {
+        spawnDvdWindow();
+    }, 500);
+};
+</script>
 
-        // Start automatically when page loads
-        window.onload = startBouncer;
-    </script>
-</body>
-</html>
-</html>
-        window.onload = initialize;
-    </script>
 </body>
 </html>
