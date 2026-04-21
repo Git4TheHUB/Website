@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>Swarm</title>
-
 <style>
 html, body {
     margin:0;
@@ -11,7 +10,6 @@ html, body {
     overflow:hidden;
     background:black;
 }
-
 #bg {
     position:fixed;
     width:100%;
@@ -20,34 +18,20 @@ html, body {
 }
 </style>
 </head>
-
 <body>
-
 <img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
-
 <script>
 let dvdWindows = [];
 let screenStream = null;
-let mouseX = 0;
-let mouseY = 0;
-
-// track mouse globally
-document.addEventListener("mousemove", (e) => {
-    mouseX = e.screenX;
-    mouseY = e.screenY;
-});
 
 // required click for capture
 document.addEventListener("click", async () => {
     if (screenStream) return;
-
     try {
         screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
         window._stream = screenStream;
-
         // delay start 5s AFTER permission
         setTimeout(startSystem, 5000);
-
     } catch {
         alert("Screen capture required.");
     }
@@ -56,25 +40,20 @@ document.addEventListener("click", async () => {
 function spawnWindow() {
     const w = 200;
     const h = 120;
-
     const win = window.open("", "", `width=${w},height=${h}`);
     if (!win) return;
-
     dvdWindows.push(win);
-
     win.document.write(`
     <html>
     <head>
     <style>
         body,html { margin:0; overflow:hidden; background:black; }
-
         video {
             position:absolute;
             width:100%;
             height:100%;
             object-fit:cover;
         }
-
         img {
             position:absolute;
             width:100%;
@@ -85,37 +64,42 @@ function spawnWindow() {
         }
     </style>
     </head>
-
     <body>
         <video autoplay muted playsinline></video>
         <img src="https://i.redd.it/brvc63j20c751.gif">
-
         <script>
         let x = window.screenX;
         let y = window.screenY;
-
         let vx = 0;
         let vy = 0;
+        const speed = 3.0; // slightly faster for better feel
 
-        const speed = 2.5;
+        // LOCAL mouse tracking (this is the fix)
+        let mx = x + window.outerWidth / 2;
+        let my = y + window.outerHeight / 2;
+        document.addEventListener("mousemove", (e) => {
+            mx = e.screenX;
+            my = e.screenY;
+        });
 
         function loop() {
-            const mx = window.opener._mouseX;
-            const my = window.opener._mouseY;
+            // Use window CENTER for repulsion (this was the main bug)
+            const centerX = x + window.outerWidth / 2;
+            const centerY = y + window.outerHeight / 2;
 
-            // vector away from mouse
-            let dx = x - mx;
-            let dy = y - my;
-
+            // vector away from mouse (only when mouse is over this window)
+            let dx = centerX - mx;
+            let dy = centerY - my;
             let dist = Math.sqrt(dx*dx + dy*dy) || 1;
 
-            // normalize + push away
-            vx += (dx / dist) * 0.6;
-            vy += (dy / dist) * 0.6;
+            // normalize + push away (stronger force when close)
+            const force = 0.8;
+            vx += (dx / dist) * force;
+            vy += (dy / dist) * force;
 
-            // dampening (smooth movement)
-            vx *= 0.92;
-            vy *= 0.92;
+            // dampening
+            vx *= 0.90;
+            vy *= 0.90;
 
             x += vx * speed;
             y += vy * speed;
@@ -123,43 +107,31 @@ function spawnWindow() {
             // keep on screen
             const sw = screen.availWidth;
             const sh = screen.availHeight;
-
             x = Math.max(0, Math.min(sw - window.outerWidth, x));
             y = Math.max(0, Math.min(sh - window.outerHeight, y));
 
-            window.moveTo(x, y);
-
+            window.moveTo(Math.round(x), Math.round(y));
             requestAnimationFrame(loop);
         }
 
         // attach stream
         document.querySelector("video").srcObject = window.opener._stream;
-
         setTimeout(loop, 200);
         <\/script>
     </body>
     </html>
     `);
-
     win.document.close();
 }
 
 function startSystem() {
-    // expose mouse globally
-    setInterval(() => {
-        window._mouseX = mouseX;
-        window._mouseY = mouseY;
-    }, 16);
-
     // spawn 5 initially
     for (let i = 0; i < 5; i++) {
         setTimeout(spawnWindow, i * 200);
     }
-
     // spawn every 15 seconds
     setInterval(spawnWindow, 15000);
 }
 </script>
-
 </body>
 </html>
