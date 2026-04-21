@@ -2,58 +2,62 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Screen Bouncers</title>
+<title>Swarm</title>
 
 <style>
-body, html {
+html, body {
     margin:0;
     padding:0;
     overflow:hidden;
     background:black;
-    color:white;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    height:100vh;
-    font-family:system-ui;
+}
+
+#bg {
+    position:fixed;
+    width:100%;
+    height:100%;
+    object-fit:cover;
 }
 </style>
 </head>
 
 <body>
 
-<div>
-    HOLD E = FASTER<br>
-    HOLD Q = SLOWER<br>
-    (Click once to allow screen capture)
-</div>
+<img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
 
 <script>
 let dvdWindows = [];
 let screenStream = null;
+let mouseX = 0;
+let mouseY = 0;
 
-let holdingE = false;
-let holdingQ = false;
+// track mouse globally
+document.addEventListener("mousemove", (e) => {
+    mouseX = e.screenX;
+    mouseY = e.screenY;
+});
 
-// MUST be triggered by user interaction
-async function startCapture() {
+// required click for capture
+document.addEventListener("click", async () => {
+    if (screenStream) return;
+
     try {
-        screenStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true
-        });
-        spawnInitial();
-    } catch (e) {
-        alert("Screen capture denied.");
+        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        window._stream = screenStream;
+
+        // delay start 5s AFTER permission
+        setTimeout(startSystem, 5000);
+
+    } catch {
+        alert("Screen capture required.");
     }
-}
+}, { once: true });
 
-document.body.addEventListener("click", startCapture, { once: true });
+function spawnWindow() {
+    const w = 200;
+    const h = 120;
 
-function spawnDvdWindow() {
-    const width = 200;
-    const height = 120;
-
-    const win = window.open("", "", `width=${width},height=${height}`);
+    const win = window.open("", "", `width=${w},height=${h}`);
     if (!win) return;
 
     dvdWindows.push(win);
@@ -62,11 +66,7 @@ function spawnDvdWindow() {
     <html>
     <head>
     <style>
-        body,html {
-            margin:0;
-            overflow:hidden;
-            background:black;
-        }
+        body,html { margin:0; overflow:hidden; background:black; }
 
         video {
             position:absolute;
@@ -91,48 +91,51 @@ function spawnDvdWindow() {
         <img src="https://i.redd.it/brvc63j20c751.gif">
 
         <script>
-        let vx = 0.8;
-        let vy = 0.6;
+        let x = window.screenX;
+        let y = window.screenY;
 
-        window.setSpeed = (m) => {
-            vx *= m;
-            vy *= m;
-        };
+        let vx = 0;
+        let vy = 0;
 
-        function bounce() {
-            let x = window.screenX;
-            let y = window.screenY;
+        const speed = 2.5;
 
-            const w = window.outerWidth;
-            const h = window.outerHeight;
+        function loop() {
+            const mx = window.opener._mouseX;
+            const my = window.opener._mouseY;
 
-            x += vx;
-            y += vy;
+            // vector away from mouse
+            let dx = x - mx;
+            let dy = y - my;
 
+            let dist = Math.sqrt(dx*dx + dy*dy) || 1;
+
+            // normalize + push away
+            vx += (dx / dist) * 0.6;
+            vy += (dy / dist) * 0.6;
+
+            // dampening (smooth movement)
+            vx *= 0.92;
+            vy *= 0.92;
+
+            x += vx * speed;
+            y += vy * speed;
+
+            // keep on screen
             const sw = screen.availWidth;
             const sh = screen.availHeight;
 
-            if (x <= 0 || x + w >= sw) vx *= -1;
-            if (y <= 0 || y + h >= sh) vy *= -1;
+            x = Math.max(0, Math.min(sw - window.outerWidth, x));
+            y = Math.max(0, Math.min(sh - window.outerHeight, y));
 
             window.moveTo(x, y);
-            requestAnimationFrame(bounce);
+
+            requestAnimationFrame(loop);
         }
 
-        // receive stream from opener
-        const stream = window.opener._stream;
-        if (stream) {
-            document.querySelector("video").srcObject = stream;
-        }
+        // attach stream
+        document.querySelector("video").srcObject = window.opener._stream;
 
-        setTimeout(() => {
-            window.moveTo(
-                Math.random() * (screen.availWidth - ${width}),
-                Math.random() * (screen.availHeight - ${height})
-            );
-            bounce();
-        }, 200);
-
+        setTimeout(loop, 200);
         <\/script>
     </body>
     </html>
@@ -141,35 +144,21 @@ function spawnDvdWindow() {
     win.document.close();
 }
 
-function spawnInitial() {
-    // expose stream to popups
-    window._stream = screenStream;
+function startSystem() {
+    // expose mouse globally
+    setInterval(() => {
+        window._mouseX = mouseX;
+        window._mouseY = mouseY;
+    }, 16);
 
+    // spawn 5 initially
     for (let i = 0; i < 5; i++) {
-        setTimeout(spawnDvdWindow, i * 150);
+        setTimeout(spawnWindow, i * 200);
     }
+
+    // spawn every 15 seconds
+    setInterval(spawnWindow, 15000);
 }
-
-// HOLD controls
-document.addEventListener("keydown", (e) => {
-    if (e.key.toLowerCase() === "e") holdingE = true;
-    if (e.key.toLowerCase() === "q") holdingQ = true;
-});
-
-document.addEventListener("keyup", (e) => {
-    if (e.key.toLowerCase() === "e") holdingE = false;
-    if (e.key.toLowerCase() === "q") holdingQ = false;
-});
-
-// continuous speed adjust
-setInterval(() => {
-    if (holdingE) {
-        dvdWindows.forEach(w => !w.closed && w.setSpeed(1.08));
-    }
-    if (holdingQ) {
-        dvdWindows.forEach(w => !w.closed && w.setSpeed(0.92));
-    }
-}, 50);
 </script>
 
 </body>
