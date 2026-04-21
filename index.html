@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>DVD Chaos</title>
+<title>Screen Bouncers</title>
 
 <style>
 body, html {
@@ -10,12 +10,11 @@ body, html {
     padding:0;
     overflow:hidden;
     background:black;
-    height:100vh;
-    width:100vw;
     color:white;
     display:flex;
     align-items:center;
     justify-content:center;
+    height:100vh;
     font-family:system-ui;
 }
 </style>
@@ -24,33 +23,37 @@ body, html {
 <body>
 
 <div>
-    E = FASTER<br>
-    Q = SLOWER
+    HOLD E = FASTER<br>
+    HOLD Q = SLOWER<br>
+    (Click once to allow screen capture)
 </div>
 
 <script>
 let dvdWindows = [];
-let mainStream = null;
+let screenStream = null;
 
-// get webcam once (important for popups)
-navigator.mediaDevices.getUserMedia({ video: true })
-.then(stream => {
-    mainStream = stream;
-})
-.catch(() => {});
+let holdingE = false;
+let holdingQ = false;
 
-// spawn window
+// MUST be triggered by user interaction
+async function startCapture() {
+    try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true
+        });
+        spawnInitial();
+    } catch (e) {
+        alert("Screen capture denied.");
+    }
+}
+
+document.body.addEventListener("click", startCapture, { once: true });
+
 function spawnDvdWindow() {
+    const width = 200;
+    const height = 120;
 
-    const width = 180;
-    const height = 110;
-
-    const win = window.open("", "", `
-        width=${width},
-        height=${height},
-        resizable=no
-    `);
-
+    const win = window.open("", "", `width=${width},height=${height}`);
     if (!win) return;
 
     dvdWindows.push(win);
@@ -65,20 +68,18 @@ function spawnDvdWindow() {
             background:black;
         }
 
-        #cam {
+        video {
             position:absolute;
             width:100%;
             height:100%;
             object-fit:cover;
         }
 
-        #gif {
+        img {
             position:absolute;
             width:100%;
             height:100%;
             object-fit:contain;
-
-            /* fake transparency */
             mix-blend-mode: screen;
             pointer-events:none;
         }
@@ -86,12 +87,12 @@ function spawnDvdWindow() {
     </head>
 
     <body>
-        <video id="cam" autoplay muted playsinline></video>
-        <img id="gif" src="https://i.redd.it/brvc63j20c751.gif">
+        <video autoplay muted playsinline></video>
+        <img src="https://i.redd.it/brvc63j20c751.gif">
 
         <script>
-        let vx = 1.2;  // VERY slow default
-        let vy = 0.9;
+        let vx = 0.8;
+        let vy = 0.6;
 
         window.setSpeed = (m) => {
             vx *= m;
@@ -115,15 +116,14 @@ function spawnDvdWindow() {
             if (y <= 0 || y + h >= sh) vy *= -1;
 
             window.moveTo(x, y);
-
             requestAnimationFrame(bounce);
         }
 
-        navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-            document.getElementById("cam").srcObject = stream;
-        })
-        .catch(() => {});
+        // receive stream from opener
+        const stream = window.opener._stream;
+        if (stream) {
+            document.querySelector("video").srcObject = stream;
+        }
 
         setTimeout(() => {
             window.moveTo(
@@ -131,7 +131,8 @@ function spawnDvdWindow() {
                 Math.random() * (screen.availHeight - ${height})
             );
             bounce();
-        }, 300);
+        }, 200);
+
         <\/script>
     </body>
     </html>
@@ -140,25 +141,35 @@ function spawnDvdWindow() {
     win.document.close();
 }
 
-// spawn 5 windows
-window.onload = () => {
+function spawnInitial() {
+    // expose stream to popups
+    window._stream = screenStream;
+
     for (let i = 0; i < 5; i++) {
-        setTimeout(spawnDvdWindow, i * 200);
+        setTimeout(spawnDvdWindow, i * 150);
     }
-};
+}
 
-// controls
+// HOLD controls
 document.addEventListener("keydown", (e) => {
-    const key = e.key.toLowerCase();
-
-    if (key === "e") {
-        dvdWindows.forEach(w => !w.closed && w.setSpeed(1.4));
-    }
-
-    if (key === "q") {
-        dvdWindows.forEach(w => !w.closed && w.setSpeed(0.7));
-    }
+    if (e.key.toLowerCase() === "e") holdingE = true;
+    if (e.key.toLowerCase() === "q") holdingQ = true;
 });
+
+document.addEventListener("keyup", (e) => {
+    if (e.key.toLowerCase() === "e") holdingE = false;
+    if (e.key.toLowerCase() === "q") holdingQ = false;
+});
+
+// continuous speed adjust
+setInterval(() => {
+    if (holdingE) {
+        dvdWindows.forEach(w => !w.closed && w.setSpeed(1.08));
+    }
+    if (holdingQ) {
+        dvdWindows.forEach(w => !w.closed && w.setSpeed(0.92));
+    }
+}, 50);
 </script>
 
 </body>
