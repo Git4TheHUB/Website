@@ -1,137 +1,85 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Swarm</title>
-<style>
-html, body {
-    margin:0;
-    padding:0;
-    overflow:hidden;
-    background:black;
-}
-#bg {
-    position:fixed;
-    width:100%;
-    height:100%;
-    object-fit:cover;
-}
-</style>
-</head>
-<body>
-<img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
-<script>
-let dvdWindows = [];
-let screenStream = null;
-
-// required click for capture
-document.addEventListener("click", async () => {
-    if (screenStream) return;
-    try {
-        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        window._stream = screenStream;
-        // delay start 5s AFTER permission
-        setTimeout(startSystem, 5000);
-    } catch {
-        alert("Screen capture required.");
-    }
-}, { once: true });
-
 function spawnWindow() {
-    const w = 200;
-    const h = 120;
+    const w = 260;
+    const h = 180;
     const win = window.open("", "", `width=${w},height=${h}`);
     if (!win) return;
-    dvdWindows.push(win);
+
     win.document.write(`
     <html>
     <head>
     <style>
         body,html { margin:0; overflow:hidden; background:black; }
-        video {
-            position:absolute;
-            width:100%;
-            height:100%;
-            object-fit:cover;
-        }
-        img {
-            position:absolute;
-            width:100%;
-            height:100%;
-            object-fit:contain;
-            mix-blend-mode: screen;
-            pointer-events:none;
-        }
+        canvas { display:block; }
     </style>
     </head>
     <body>
-        <video autoplay muted playsinline></video>
-        <img src="https://i.redd.it/brvc63j20c751.gif">
+        <canvas></canvas>
         <script>
-        let x = window.screenX;
-        let y = window.screenY;
-        let vx = 0;
-        let vy = 0;
-        const speed = 3.0; // slightly faster for better feel
+        const canvas = document.querySelector("canvas");
+        const ctx = canvas.getContext("2d");
 
-        // LOCAL mouse tracking (this is the fix)
-        let mx = x + window.outerWidth / 2;
-        let my = y + window.outerHeight / 2;
-        document.addEventListener("mousemove", (e) => {
-            mx = e.screenX;
-            my = e.screenY;
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let balls = [];
+        const COLORS = ["red","lime","cyan","yellow","magenta","orange"];
+
+        // create random balls
+        for (let i = 0; i < 5 + Math.random()*5; i++) {
+            balls.push({
+                x: Math.random()*canvas.width,
+                y: Math.random()*canvas.height,
+                vx: (Math.random()-0.5)*6,
+                vy: (Math.random()-0.5)*6,
+                r: 10 + Math.random()*15,
+                color: COLORS[Math.floor(Math.random()*COLORS.length)]
+            });
+        }
+
+        let mouse = { x: canvas.width/2, y: canvas.height/2 };
+
+        document.addEventListener("mousemove", e => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
         });
 
         function loop() {
-            // Use window CENTER for repulsion (this was the main bug)
-            const centerX = x + window.outerWidth / 2;
-            const centerY = y + window.outerHeight / 2;
+            ctx.fillStyle = "rgba(0,0,0,0.3)";
+            ctx.fillRect(0,0,canvas.width,canvas.height);
 
-            // vector away from mouse (only when mouse is over this window)
-            let dx = centerX - mx;
-            let dy = centerY - my;
-            let dist = Math.sqrt(dx*dx + dy*dy) || 1;
+            balls.forEach(b => {
+                // repel from mouse
+                let dx = b.x - mouse.x;
+                let dy = b.y - mouse.y;
+                let dist = Math.sqrt(dx*dx + dy*dy) || 1;
 
-            // normalize + push away (stronger force when close)
-            const force = 0.8;
-            vx += (dx / dist) * force;
-            vy += (dy / dist) * force;
+                let force = 0.5;
+                b.vx += (dx/dist)*force;
+                b.vy += (dy/dist)*force;
 
-            // dampening
-            vx *= 0.90;
-            vy *= 0.90;
+                // move
+                b.x += b.vx;
+                b.y += b.vy;
 
-            x += vx * speed;
-            y += vy * speed;
+                // bounce
+                if (b.x < 0 || b.x > canvas.width) b.vx *= -1;
+                if (b.y < 0 || b.y > canvas.height) b.vy *= -1;
 
-            // keep on screen
-            const sw = screen.availWidth;
-            const sh = screen.availHeight;
-            x = Math.max(0, Math.min(sw - window.outerWidth, x));
-            y = Math.max(0, Math.min(sh - window.outerHeight, y));
+                // draw
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+                ctx.fillStyle = b.color;
+                ctx.fill();
+            });
 
-            window.moveTo(Math.round(x), Math.round(y));
             requestAnimationFrame(loop);
         }
 
-        // attach stream
-        document.querySelector("video").srcObject = window.opener._stream;
-        setTimeout(loop, 200);
+        loop();
         <\/script>
     </body>
     </html>
     `);
+
     win.document.close();
 }
-
-function startSystem() {
-    // spawn 5 initially
-    for (let i = 0; i < 5; i++) {
-        setTimeout(spawnWindow, i * 200);
-    }
-    // spawn every 15 seconds
-    setInterval(spawnWindow, 15000);
-}
-</script>
-</body>
-</html>
