@@ -1,85 +1,802 @@
-function spawnWindow() {
-    const w = 260;
-    const h = 180;
-    const win = window.open("", "", `width=${w},height=${h}`);
-    if (!win) return;
-
-    win.document.write(`
-    <html>
-    <head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="format-detection" content="telephone=no">
+    <title>AR Cleaner</title>
     <style>
-        body,html { margin:0; overflow:hidden; background:black; }
-        canvas { display:block; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.12);
+            --glass-border: rgba(255, 255, 255, 0.25);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100dvh;
+            width: 100vw;
+            overflow: hidden;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: #0a0a1f;
+            color: white;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        #ar-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+            display: none;
+            transform: scaleX(-1); /* mirror for natural feel when using front camera fallback */
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2;
+        }
+
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .glass-panel {
+            pointer-events: auto;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            padding: 16px 20px;
+        }
+
+        .header {
+            position: absolute;
+            top: max(20px, env(safe-area-inset-top));
+            left: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 20;
+        }
+
+        .title {
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            padding: 12px 24px;
+            border-radius: 9999px;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: max(30px, env(safe-area-inset-bottom));
+            left: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 18px 24px;
+            font-size: 17px;
+            font-weight: 600;
+            border-radius: 20px;
+            border: 1px solid var(--glass-border);
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            color: white;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn.primary {
+            background: linear-gradient(90deg, #44ddff, #77aaff);
+            color: #0a0a1f;
+            font-weight: 700;
+            border: none;
+        }
+
+        .status {
+            position: absolute;
+            top: max(90px, calc(env(safe-area-inset-top) + 70px));
+            left: 20px;
+            right: 20px;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 500;
+            padding: 12px 24px;
+            border-radius: 9999px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .orb-count {
+            position: absolute;
+            top: max(20px, env(safe-area-inset-top));
+            right: 20px;
+            font-size: 15px;
+            font-weight: 500;
+            padding: 8px 18px;
+            border-radius: 9999px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .help {
+            position: absolute;
+            bottom: max(30px, env(safe-area-inset-bottom));
+            left: 20px;
+            font-size: 13px;
+            opacity: 0.7;
+            max-width: 240px;
+            line-height: 1.4;
+        }
+
+        .modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 360px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: 28px;
+            padding: 28px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            display: none;
+            z-index: 30;
+        }
+
+        .permission-notice {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--glass-bg);
+            backdrop-filter: blur(30px);
+            padding: 24px;
+            border-radius: 24px;
+            text-align: center;
+            max-width: 300px;
+            display: none;
+            z-index: 25;
+        }
     </style>
-    </head>
-    <body>
-        <canvas></canvas>
-        <script>
-        const canvas = document.querySelector("canvas");
-        const ctx = canvas.getContext("2d");
+</head>
+<body>
+    <!-- LIVE CAMERA FEED (real AR background) -->
+    <video id="ar-video" autoplay playsinline muted></video>
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+    <!-- 3D CANVAS (AR overlay) -->
+    <canvas id="canvas"></canvas>
 
-        let balls = [];
-        const COLORS = ["red","lime","cyan","yellow","magenta","orange"];
+    <!-- UI OVERLAY -->
+    <div class="ui-overlay">
+        
+        <!-- Header -->
+        <div class="header">
+            <div class="glass-panel title">
+                AR Cleaner
+            </div>
+            
+            <div class="orb-count" id="orb-count">
+                <span id="collected">0</span>/<span id="total">0</span> orbs
+            </div>
+        </div>
 
-        // create random balls
-        for (let i = 0; i < 5 + Math.random()*5; i++) {
-            balls.push({
-                x: Math.random()*canvas.width,
-                y: Math.random()*canvas.height,
-                vx: (Math.random()-0.5)*6,
-                vy: (Math.random()-0.5)*6,
-                r: 10 + Math.random()*15,
-                color: COLORS[Math.floor(Math.random()*COLORS.length)]
+        <!-- Status -->
+        <div class="glass-panel status" id="status"></div>
+
+        <!-- Controls -->
+        <div class="controls">
+            
+            <!-- Primary AR start -->
+            <div class="button-row">
+                <div class="btn primary" onclick="startARSession()" id="ar-start-btn">
+                    Enable AR Camera + Map
+                </div>
+            </div>
+
+            <!-- Mode buttons -->
+            <div class="button-row">
+                <div class="btn" onclick="startMapping()">Map Floor / Wall</div>
+                <div class="btn" onclick="setTrackedObject()">Set Object</div>
+            </div>
+
+            <div class="button-row">
+                <div class="btn" onclick="finishMapping()">Finish Area</div>
+                <div class="btn primary" onclick="startTracking()" id="track-btn">Start Collecting</div>
+            </div>
+
+            <!-- Secondary actions -->
+            <div class="button-row">
+                <div class="btn" onclick="resetAll()" style="flex: 0.6;">Reset</div>
+                <div class="btn" onclick="populateOrbs()" id="populate-btn" style="opacity: 0.6; pointer-events: none;">Add Orbs</div>
+                <div class="btn" onclick="toggle3DOutline()" id="outline-btn" style="opacity: 0.6; pointer-events: none;">3D Outline</div>
+            </div>
+
+            <!-- Info -->
+            <div class="help">
+                Camera will request permission on first tap.<br>
+                Tap to place mapping points.<br>
+                Drag finger to move tracked object.
+            </div>
+        </div>
+
+        <!-- Object selection modal -->
+        <div class="modal" id="object-modal">
+            <h2 style="margin-bottom: 24px; font-size: 20px;">Choose tracked object</h2>
+            <div style="display: flex; gap: 16px; justify-content: center; margin-bottom: 32px;">
+                <div onclick="selectObjectType('hand')" style="cursor: pointer; text-align: center;">
+                    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #ffdd88, #ffaa33); border-radius: 20px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 40px; box-shadow: 0 10px 30px rgba(255,170,51,0.4);">👋</div>
+                    <div style="font-weight: 600;">Hand</div>
+                </div>
+                <div onclick="selectObjectType('orb')" style="cursor: pointer; text-align: center;">
+                    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #77ddff, #4488ff); border-radius: 20px; margin: 0 auto 12px; box-shadow: 0 10px 30px rgba(68,136,255,0.4);"></div>
+                    <div style="font-weight: 600;">Liquid Orb</div>
+                </div>
+            </div>
+            <div class="btn" onclick="hideModal()" style="max-width: 200px; margin: 0 auto;">Cancel</div>
+        </div>
+
+        <!-- Permission notice (fallback) -->
+        <div class="permission-notice" id="permission-notice">
+            <p style="margin-bottom: 16px;">📷 Camera access is required for real AR overlay.<br>iOS will prompt you now.</p>
+            <div class="btn" onclick="hidePermissionNotice()">Got it</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script>
+        // =============================================
+        // AR Cleaner – Fixed for iOS Safari
+        // • Real camera feed with permission request
+        // • Proper safe-area insets & 100dvh
+        // • All buttons now fully functional
+        // • Liquid-glass 3D overlay on live camera
+        // =============================================
+
+        let scene, camera, renderer;
+        let raycaster;
+        let pointer = new THREE.Vector2();
+        
+        let polygonPoints = [];
+        let floorMesh = null;
+        let boundaryLine = null;
+        let boundaryTube = null;
+        
+        let trackedMesh = null;
+        let trackedType = 'hand';
+        
+        let orbGroup;
+        let orbs = [];
+        
+        let isMapping = false;
+        let isTracking = false;
+        let tempMarkers = [];
+        
+        let collectedCount = 0;
+        let totalOrbs = 0;
+        
+        const PLANE_Y = 0;
+        const ORB_RADIUS = 0.22;
+        const COLLECT_DISTANCE = 1.1;
+        
+        let videoStream = null;
+        let videoElement = null;
+
+        // Liquid-glass material
+        function createGlassMaterial(color, transmission = 0.92) {
+            return new THREE.MeshPhysicalMaterial({
+                color: color,
+                metalness: 0.15,
+                roughness: 0.05,
+                transmission: transmission,
+                thickness: 0.6,
+                ior: 1.45,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.05,
+                envMapIntensity: 1.2,
+                side: THREE.DoubleSide
             });
         }
-
-        let mouse = { x: canvas.width/2, y: canvas.height/2 };
-
-        document.addEventListener("mousemove", e => {
-            mouse.x = e.clientX;
-            mouse.y = e.clientY;
-        });
-
-        function loop() {
-            ctx.fillStyle = "rgba(0,0,0,0.3)";
-            ctx.fillRect(0,0,canvas.width,canvas.height);
-
-            balls.forEach(b => {
-                // repel from mouse
-                let dx = b.x - mouse.x;
-                let dy = b.y - mouse.y;
-                let dist = Math.sqrt(dx*dx + dy*dy) || 1;
-
-                let force = 0.5;
-                b.vx += (dx/dist)*force;
-                b.vy += (dy/dist)*force;
-
-                // move
-                b.x += b.vx;
-                b.y += b.vy;
-
-                // bounce
-                if (b.x < 0 || b.x > canvas.width) b.vx *= -1;
-                if (b.y < 0 || b.y > canvas.height) b.vy *= -1;
-
-                // draw
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
-                ctx.fillStyle = b.color;
-                ctx.fill();
+        
+        function initThree() {
+            const canvas = document.getElementById('canvas');
+            videoElement = document.getElementById('ar-video');
+            
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x0a0a1f, 15, 60);
+            
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 12, 18);
+            camera.lookAt(0, 0, 0);
+            
+            renderer = new THREE.WebGLRenderer({
+                canvas: canvas,
+                antialias: true,
+                alpha: true   // transparent so camera shows through
             });
-
-            requestAnimationFrame(loop);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            
+            // Lights
+            const ambient = new THREE.AmbientLight(0xaaffff, 0.6);
+            scene.add(ambient);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            dirLight.position.set(10, 20, 15);
+            scene.add(dirLight);
+            const hemi = new THREE.HemisphereLight(0x88ccff, 0x112233, 0.8);
+            scene.add(hemi);
+            
+            raycaster = new THREE.Raycaster();
+            orbGroup = new THREE.Group();
+            scene.add(orbGroup);
+            
+            window.addEventListener('resize', onResize);
+            canvas.addEventListener('pointerdown', onPointerDown);
+            canvas.addEventListener('pointermove', onPointerMove);
+            canvas.addEventListener('pointerup', onPointerUp);
+            
+            animate();
+            console.log('%c✅ AR Cleaner iOS-ready – camera + liquid glass', 'color:#77ddff; font-family:monospace;');
         }
-
-        loop();
-        <\/script>
-    </body>
-    </html>
-    `);
-
-    win.document.close();
-}
+        
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            orbs.forEach((orb, i) => {
+                if (!orb.visible) return;
+                orb.position.y = 0.3 + Math.sin(Date.now() * 0.003 + i) * 0.08;
+                orb.rotation.y = Date.now() * 0.0008;
+            });
+            
+            if (isTracking && trackedMesh) checkCollection();
+            
+            renderer.render(scene, camera);
+        }
+        
+        // ====================== CAMERA PERMISSION ======================
+        async function startCamera() {
+            if (videoStream) return;
+            
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { ideal: 'environment' }, // rear camera first
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                
+                videoElement.srcObject = videoStream;
+                videoElement.style.display = 'block';
+                await videoElement.play();
+                
+                showStatus('✅ Camera enabled – live AR overlay active', false, 2200);
+                document.getElementById('ar-start-btn').textContent = 'AR Camera Active ✓';
+                document.getElementById('ar-start-btn').style.opacity = '0.7';
+                
+            } catch (err) {
+                console.error(err);
+                showStatus('Camera permission denied or unavailable on this device', true, 3000);
+                // fallback – still allow simulation
+            }
+        }
+        
+        function startARSession() {
+            // This is the main entry point that requests real camera permission
+            startCamera();
+            // Also start mapping flow automatically after permission
+            setTimeout(() => {
+                if (videoStream) startMapping();
+            }, 800);
+        }
+        
+        // ====================== MAPPING ======================
+        function startMapping() {
+            if (!videoStream) {
+                showStatus('Tap “Enable AR Camera” first for live background', true, 2200);
+                return;
+            }
+            resetMapping();
+            isMapping = true;
+            showStatus('Tap anywhere on the live camera view to place corner points', false, 2800);
+            document.getElementById('populate-btn').style.opacity = '0.3';
+            document.getElementById('outline-btn').style.opacity = '0.3';
+        }
+        
+        function resetMapping() {
+            polygonPoints = [];
+            tempMarkers.forEach(m => scene.remove(m));
+            tempMarkers = [];
+            if (floorMesh) scene.remove(floorMesh);
+            if (boundaryLine) scene.remove(boundaryLine);
+            if (boundaryTube) scene.remove(boundaryTube);
+            floorMesh = boundaryLine = boundaryTube = null;
+        }
+        
+        function finishMapping() {
+            if (polygonPoints.length < 3) {
+                showStatus('Need at least 3 points!', true);
+                return;
+            }
+            
+            isMapping = false;
+            
+            const shape = new THREE.Shape();
+            shape.moveTo(polygonPoints[0].x, polygonPoints[0].z);
+            for (let i = 1; i < polygonPoints.length; i++) {
+                shape.lineTo(polygonPoints[i].x, polygonPoints[i].z);
+            }
+            shape.closePath();
+            
+            const shapeGeo = new THREE.ShapeGeometry(shape);
+            const floorMat = createGlassMaterial(0x44aaff, 0.75);
+            floorMesh = new THREE.Mesh(shapeGeo, floorMat);
+            floorMesh.rotation.x = -Math.PI / 2;
+            floorMesh.position.y = 0.02;
+            scene.add(floorMesh);
+            
+            const linePoints = polygonPoints.map(p => new THREE.Vector3(p.x, 0.05, p.z));
+            linePoints.push(linePoints[0].clone());
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints);
+            boundaryLine = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xaaffff, linewidth: 8 }));
+            scene.add(boundaryLine);
+            
+            tempMarkers.forEach(m => scene.remove(m));
+            tempMarkers = [];
+            
+            showStatus('Area mapped ✓ Live camera + 3D overlay ready', false, 2200);
+            document.getElementById('populate-btn').style.opacity = '1';
+            document.getElementById('populate-btn').style.pointerEvents = 'auto';
+            document.getElementById('outline-btn').style.opacity = '1';
+            document.getElementById('outline-btn').style.pointerEvents = 'auto';
+            
+            if (!trackedMesh) setTrackedObject(true);
+        }
+        
+        function setTrackedObject(auto = false) {
+            if (!auto) {
+                document.getElementById('object-modal').style.display = 'block';
+                return;
+            }
+            initTrackedMesh('hand');
+        }
+        
+        function selectObjectType(type) {
+            hideModal();
+            initTrackedMesh(type);
+        }
+        
+        function hideModal() {
+            document.getElementById('object-modal').style.display = 'none';
+        }
+        
+        function initTrackedMesh(type) {
+            trackedType = type;
+            if (trackedMesh) scene.remove(trackedMesh);
+            
+            let geo, mat;
+            if (type === 'hand') {
+                geo = new THREE.SphereGeometry(0.55, 48, 48);
+                mat = createGlassMaterial(0xffdd77, 0.85);
+                mat.emissive = new THREE.Color(0xffaa33);
+                mat.emissiveIntensity = 0.6;
+            } else {
+                geo = new THREE.SphereGeometry(0.48, 64, 64);
+                mat = createGlassMaterial(0x77ddff, 0.98);
+            }
+            
+            trackedMesh = new THREE.Mesh(geo, mat);
+            trackedMesh.position.set(3, 0.6, 3);
+            scene.add(trackedMesh);
+            
+            showStatus(`Tracked: ${type === 'hand' ? 'hand' : 'liquid orb'}`, false, 1500);
+        }
+        
+        function startTracking() {
+            if (!floorMesh || !trackedMesh) {
+                showStatus('Map area and set object first', true);
+                return;
+            }
+            isTracking = true;
+            showStatus('Drag finger anywhere on screen to move object • Orbs collect automatically', false, 2800);
+            document.getElementById('track-btn').textContent = 'Collecting...';
+        }
+        
+        function toggle3DOutline() {
+            if (!polygonPoints.length) return;
+            
+            if (boundaryTube) {
+                scene.remove(boundaryTube);
+                boundaryTube = null;
+                if (boundaryLine) boundaryLine.visible = true;
+                showStatus('Outline returned to 2D', false, 1200);
+                return;
+            }
+            
+            const curvePoints = polygonPoints.map(p => new THREE.Vector3(p.x, 0.6, p.z));
+            curvePoints.push(curvePoints[0].clone());
+            const curve = new THREE.CatmullRomCurve3(curvePoints, true);
+            const tubeGeo = new THREE.TubeGeometry(curve, 128, 0.12, 12, false);
+            
+            const tubeMat = createGlassMaterial(0xaaffff, 0.9);
+            tubeMat.emissive = new THREE.Color(0x77ccff);
+            tubeMat.emissiveIntensity = 0.4;
+            
+            boundaryTube = new THREE.Mesh(tubeGeo, tubeMat);
+            scene.add(boundaryTube);
+            if (boundaryLine) boundaryLine.visible = false;
+            
+            showStatus('3D liquid-glass outline activated', false, 1800);
+        }
+        
+        function populateOrbs() {
+            if (!floorMesh) {
+                showStatus('Finish mapping first', true);
+                return;
+            }
+            
+            orbGroup.clear();
+            orbs = [];
+            
+            const num = 68;
+            const bounds = getPolygonBounds();
+            
+            function isInPolygon(x, z) {
+                let inside = false;
+                const n = polygonPoints.length;
+                for (let i = 0, j = n - 1; i < n; j = i++) {
+                    const xi = polygonPoints[i].x, zi = polygonPoints[i].z;
+                    const xj = polygonPoints[j].x, zj = polygonPoints[j].z;
+                    const intersect = ((zi > z) !== (zj > z)) &&
+                        (x < (xj - xi) * (z - zi) / (zj - zi) + xi);
+                    if (intersect) inside = !inside;
+                }
+                return inside;
+            }
+            
+            let placed = 0, attempts = 0;
+            while (placed < num && attempts < 1200) {
+                const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+                const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
+                
+                if (!isInPolygon(x, z)) { attempts++; continue; }
+                
+                let overlap = false;
+                for (let orb of orbs) {
+                    const dx = orb.position.x - x;
+                    const dz = orb.position.z - z;
+                    if (dx * dx + dz * dz < 0.8) { overlap = true; break; }
+                }
+                if (overlap) { attempts++; continue; }
+                
+                const orbMesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(ORB_RADIUS, 48, 48),
+                    createGlassMaterial(0x88eeff, 0.97)
+                );
+                orbMesh.position.set(x, 0.3, z);
+                orbMesh.castShadow = true;
+                orbMesh.receiveShadow = true;
+                
+                orbGroup.add(orbMesh);
+                orbs.push(orbMesh);
+                placed++;
+            }
+            
+            totalOrbs = orbs.length;
+            collectedCount = 0;
+            updateOrbCounter();
+            showStatus(`${totalOrbs} liquid glass orbs placed in your area`, false, 1800);
+        }
+        
+        function getPolygonBounds() {
+            let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+            polygonPoints.forEach(p => {
+                minX = Math.min(minX, p.x);
+                maxX = Math.max(maxX, p.x);
+                minZ = Math.min(minZ, p.z);
+                maxZ = Math.max(maxZ, p.z);
+            });
+            return { minX, maxX, minZ, maxZ };
+        }
+        
+        function checkCollection() {
+            if (!trackedMesh) return;
+            for (let i = orbs.length - 1; i >= 0; i--) {
+                const orb = orbs[i];
+                if (!orb.visible) continue;
+                
+                const distance = trackedMesh.position.distanceTo(orb.position);
+                if (distance < COLLECT_DISTANCE) {
+                    orb.visible = false;
+                    orbs.splice(i, 1);
+                    collectedCount++;
+                    updateOrbCounter();
+                    
+                    if (trackedMesh.material.emissive) {
+                        const original = trackedMesh.material.emissiveIntensity;
+                        trackedMesh.material.emissiveIntensity = 2.5;
+                        setTimeout(() => { if (trackedMesh) trackedMesh.material.emissiveIntensity = original; }, 80);
+                    }
+                    
+                    if (collectedCount === totalOrbs && totalOrbs > 0) {
+                        setTimeout(() => {
+                            showStatus('✅ Area completely cleaned!', false, 3000);
+                            isTracking = false;
+                            document.getElementById('track-btn').textContent = 'Start Collecting';
+                        }, 400);
+                    }
+                }
+            }
+        }
+        
+        function updateOrbCounter() {
+            document.getElementById('collected').textContent = collectedCount;
+            document.getElementById('total').textContent = totalOrbs;
+        }
+        
+        function onPointerDown(e) {
+            pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            
+            if (isMapping) {
+                raycaster.setFromCamera(pointer, camera);
+                const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -PLANE_Y);
+                const intersectPoint = new THREE.Vector3();
+                const hit = raycaster.ray.intersectPlane(plane, intersectPoint);
+                
+                if (hit) {
+                    const point = intersectPoint.clone();
+                    point.y = 0;
+                    polygonPoints.push(point);
+                    
+                    const markerGeo = new THREE.SphereGeometry(0.15, 24, 24);
+                    const markerMat = createGlassMaterial(0xffffff, 0.6);
+                    const marker = new THREE.Mesh(markerGeo, markerMat);
+                    marker.position.copy(point);
+                    marker.position.y = 0.1;
+                    scene.add(marker);
+                    tempMarkers.push(marker);
+                }
+            }
+        }
+        
+        function onPointerMove(e) {
+            if (!isTracking || !trackedMesh) return;
+            
+            pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(pointer, camera);
+            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -PLANE_Y);
+            const intersectPoint = new THREE.Vector3();
+            const hit = raycaster.ray.intersectPlane(plane, intersectPoint);
+            
+            if (hit && floorMesh) {
+                trackedMesh.position.x = intersectPoint.x;
+                trackedMesh.position.z = intersectPoint.z;
+                trackedMesh.position.y = 0.6;
+                
+                if (polygonPoints.length > 2) {
+                    const bounds = getPolygonBounds();
+                    trackedMesh.position.x = Math.max(bounds.minX + 0.5, Math.min(trackedMesh.position.x, bounds.maxX - 0.5));
+                    trackedMesh.position.z = Math.max(bounds.minZ + 0.5, Math.min(trackedMesh.position.z, bounds.maxZ - 0.5));
+                }
+            }
+        }
+        
+        function onPointerUp() {}
+        
+        function showStatus(text, isError = false, timeout = 1800) {
+            const el = document.getElementById('status');
+            el.textContent = text;
+            el.style.opacity = '1';
+            el.style.background = isError ? 'rgba(255, 80, 80, 0.3)' : 'var(--glass-bg)';
+            setTimeout(() => { el.style.opacity = '0'; }, timeout);
+        }
+        
+        function hidePermissionNotice() {
+            document.getElementById('permission-notice').style.display = 'none';
+        }
+        
+        function resetAll() {
+            isMapping = false;
+            isTracking = false;
+            resetMapping();
+            if (trackedMesh) scene.remove(trackedMesh);
+            trackedMesh = null;
+            orbGroup.clear();
+            orbs = [];
+            collectedCount = 0;
+            totalOrbs = 0;
+            updateOrbCounter();
+            document.getElementById('track-btn').textContent = 'Start Collecting';
+            
+            // stop camera
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+                videoElement.style.display = 'none';
+                document.getElementById('ar-start-btn').textContent = 'Enable AR Camera + Map';
+                document.getElementById('ar-start-btn').style.opacity = '1';
+            }
+            
+            showStatus('Everything reset – ready for new area', false, 1200);
+        }
+        
+        // Boot the app
+        window.onload = initThree;
+    </script>
+</body>
+</html>
