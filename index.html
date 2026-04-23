@@ -2,39 +2,139 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Crazy Swarm</title>
+<title>Swarm</title>
 <style>
 html, body {
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    background: #0a0a0a;
-    font-family: system-ui, sans-serif;
-    color: white;
+    margin:0;
+    padding:0;
+    overflow:hidden;
+    background:black;
 }
 #bg {
-    position: fixed;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0.15;
+    position:fixed;
+    width:100%;
+    height:100%;
+    object-fit:cover;
 }
-#logo {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 420px;
-    z-index: 10;
-    filter: drop-shadow(0 0 30px #ff00ff);
+</style>
+</head>
+<body>
+<img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
+<script>
+let dvdWindows = [];
+let screenStream = null;
+
+// required click for capture
+document.addEventListener("click", async () => {
+    if (screenStream) return;
+    try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        window._stream = screenStream;
+        // delay start 5s AFTER permission
+        setTimeout(startSystem, 5000);
+    } catch {
+        alert("Screen capture required.");
+    }
+}, { once: true });
+
+function spawnWindow() {
+    const w = 200;
+    const h = 120;
+    const win = window.open("", "", `width=${w},height=${h}`);
+    if (!win) return;
+    dvdWindows.push(win);
+    win.document.write(`
+    <html>
+    <head>
+    <style>
+        body,html { margin:0; overflow:hidden; background:black; }
+        video {
+            position:absolute;
+            width:100%;
+            height:100%;
+            object-fit:cover;
+        }
+        img {
+            position:absolute;
+            width:100%;
+            height:100%;
+            object-fit:contain;
+            mix-blend-mode: screen;
+            pointer-events:none;
+        }
+    </style>
+    </head>
+    <body>
+        <video autoplay muted playsinline></video>
+        <img src="https://i.redd.it/brvc63j20c751.gif">
+        <script>
+        let x = window.screenX;
+        let y = window.screenY;
+        let vx = 0;
+        let vy = 0;
+        const speed = 3.0; // slightly faster for better feel
+
+        // LOCAL mouse tracking (this is the fix)
+        let mx = x + window.outerWidth / 2;
+        let my = y + window.outerHeight / 2;
+        document.addEventListener("mousemove", (e) => {
+            mx = e.screenX;
+            my = e.screenY;
+        });
+
+        function loop() {
+            // Use window CENTER for repulsion (this was the main bug)
+            const centerX = x + window.outerWidth / 2;
+            const centerY = y + window.outerHeight / 2;
+
+            // vector away from mouse (only when mouse is over this window)
+            let dx = centerX - mx;
+            let dy = centerY - my;
+            let dist = Math.sqrt(dx*dx + dy*dy) || 1;
+
+            // normalize + push away (stronger force when close)
+            const force = 0.8;
+            vx += (dx / dist) * force;
+            vy += (dy / dist) * force;
+
+            // dampening
+            vx *= 0.90;
+            vy *= 0.90;
+
+            x += vx * speed;
+            y += vy * speed;
+
+            // keep on screen
+            const sw = screen.availWidth;
+            const sh = screen.availHeight;
+            x = Math.max(0, Math.min(sw - window.outerWidth, x));
+            y = Math.max(0, Math.min(sh - window.outerHeight, y));
+
+            window.moveTo(Math.round(x), Math.round(y));
+            requestAnimationFrame(loop);
+        }
+
+        // attach stream
+        document.querySelector("video").srcObject = window.opener._stream;
+        setTimeout(loop, 200);
+        <\/script>
+    </body>
+    </html>
+    `);
+    win.document.close();
 }
-#start {
-    position: fixed;
-    bottom: 40px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 12px 20px;
-    background: #ff00ff;
+
+function startSystem() {
+    // spawn 5 initially
+    for (let i = 0; i < 5; i++) {
+        setTimeout(spawnWindow, i * 200);
+    }
+    // spawn every 15 seconds
+    setInterval(spawnWindow, 15000);
+}
+</script>
+</body>
+</html>    background: #ff00ff;
     border: none;
     color: white;
     font-size: 16px;
