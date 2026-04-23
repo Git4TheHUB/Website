@@ -28,184 +28,129 @@ html, body {
     z-index: 10;
     filter: drop-shadow(0 0 30px #ff00ff);
 }
+#start {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 20px;
+    background: #ff00ff;
+    border: none;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+}
 </style>
 </head>
 <body>
 
-<!-- Dark background with subtle CrazyGames vibe -->
 <img id="bg" src="https://www.crazygames.com/img/background.jpg" onerror="this.style.display='none'">
+<img id="logo" src="https://cdn.crazygames.com/logo/crazygames-logo-white.png">
 
-<!-- Big CrazyGames logo in the center -->
-<img id="logo" src="https://cdn.crazygames.com/logo/crazygames-logo-white.png" 
-     onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/CrazyGames_logo.svg/512px-CrazyGames_logo.svg.png'">
+<button id="start">Start Swarm</button>
 
 <script>
-let dvdWindows = [];
 let screenStream = null;
 
-// Required click to start screen capture
-document.addEventListener("click", async () => {
-    if (screenStream) return;
+document.getElementById("start").onclick = async () => {
     try {
         screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        window._stream = screenStream;
-        // Start the swarm 5 seconds after permission
-        setTimeout(startSystem, 5000);
+
+        // spawn windows immediately (important for popup blockers)
+        for (let i = 0; i < 5; i++) {
+            spawnWindow();
+        }
+
+        // keep spawning more
+        setInterval(spawnWindow, 10000);
+
     } catch (e) {
-        alert("Screen capture permission is required for this experience.");
+        alert("Screen capture permission is required.");
     }
-}, { once: true });
+};
 
 function spawnWindow() {
-    const w = 240;
-    const h = 160;
-    const win = window.open("", "", `width=${w},height=${h},resizable=no`);
+    const w = 260;
+    const h = 180;
+
+    const win = window.open("", "", `width=${w},height=${h}`);
     if (!win) return;
-    dvdWindows.push(win);
 
+    // basic HTML first
     win.document.write(`
-    <html>
-    <head>
-    <style>
-        body,html { 
-            margin:0; 
-            padding:0; 
-            overflow:hidden; 
-            background:#111; 
-        }
-        video {
-            position:absolute;
-            width:100%;
-            height:100%;
-            object-fit:cover;
-            filter: brightness(0.85);
-        }
-        img {
-            position:absolute;
-            width:100%;
-            height:100%;
-            object-fit:contain;
-            mix-blend-mode: screen;
-            opacity: 0.9;
-            pointer-events:none;
-        }
-    </style>
-    </head>
-    <body>
-        <video autoplay muted playsinline></video>
-        <!-- CrazyGames logo as the bouncing overlay -->
-        <img src="https://cdn.crazygames.com/logo/crazygames-logo-white.png" 
-             onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/CrazyGames_logo.svg/512px-CrazyGames_logo.svg.png'">
-        
-        <script>
-        let x = window.screenX;
-        let y = window.screenY;
-        let vx = (Math.random() - 0.5) * 4;
-        let vy = (Math.random() - 0.5) * 4;
-        const speed = 3.2;
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body,html {
+    margin:0;
+    overflow:hidden;
+    background:#000;
+}
+video {
+    width:100%;
+    height:100%;
+    object-fit:cover;
+}
+img {
+    position:absolute;
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    mix-blend-mode:screen;
+    pointer-events:none;
+}
+</style>
+</head>
+<body>
+<video autoplay muted playsinline></video>
+<img src="https://cdn.crazygames.com/logo/crazygames-logo-white.png">
+</body>
+</html>
+    `);
 
-        let mx = x + window.outerWidth / 2;
-        let my = y + window.outerHeight / 2;
+    win.document.close();
 
-        document.addEventListener("mousemove", (e) => {
-            mx = e.screenX;
-            my = e.screenY;
-        });
+    // wait until window is ready
+    const interval = setInterval(() => {
+        const video = win.document.querySelector("video");
+        if (!video) return;
 
-        function loop() {
-            const centerX = x + window.outerWidth / 2;
-            const centerY = y + window.outerHeight / 2;
+        video.srcObject = screenStream;
+        video.play().catch(() => {});
 
-            let dx = centerX - mx;
-            let dy = centerY - my;
-            let dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        startMovement(win);
+        clearInterval(interval);
+    }, 100);
+}
 
-            const force = 1.1;
-            vx += (dx / dist) * force;
-            vy += (dy / dist) * force;
+function startMovement(win) {
+    let x = win.screenX;
+    let y = win.screenY;
 
-            vx *= 0.89;
-            vy *= 0.89;
+    let vx = (Math.random() - 0.5) * 6;
+    let vy = (Math.random() - 0.5) * 6;
 
-            x += vx * speed;
-            y += vy * speed;
+    function loop() {
+        try {
+            x += vx;
+            y += vy;
 
             const sw = screen.availWidth;
             const sh = screen.availHeight;
 
-            x = Math.max(0, Math.min(sw - window.outerWidth, x));
-            y = Math.max(0, Math.min(sh - window.outerHeight, y));
+            if (x <= 0 || x >= sw - win.outerWidth) vx *= -1;
+            if (y <= 0 || y >= sh - win.outerHeight) vy *= -1;
 
-            window.moveTo(Math.round(x), Math.round(y));
-            requestAnimationFrame(loop);
+            win.moveTo(x, y);
+            win.requestAnimationFrame(loop);
+        } catch {
+            // window closed
         }
-
-        // Attach the shared screen stream
-        document.querySelector("video").srcObject = window.opener._stream;
-        setTimeout(loop, 150);
-        </script>
-    </body>
-    </html>
-    `);
-    win.document.close();
-}
-
-function startSystem() {
-    // Spawn 6 windows initially with slight delay
-    for (let i = 0; i < 6; i++) {
-        setTimeout(spawnWindow, i * 180);
     }
-    // Keep spawning more every 12 seconds
-    setInterval(spawnWindow, 12000);
+
+    loop();
 }
 </script>
 </body>
-</html>        }
-
-        let mouse = { x: canvas.width/2, y: canvas.height/2 };
-
-        document.addEventListener("mousemove", e => {
-            mouse.x = e.clientX;
-            mouse.y = e.clientY;
-        });
-
-        function loop() {
-            ctx.fillStyle = "rgba(0,0,0,0.3)";
-            ctx.fillRect(0,0,canvas.width,canvas.height);
-
-            balls.forEach(b => {
-                // repel from mouse
-                let dx = b.x - mouse.x;
-                let dy = b.y - mouse.y;
-                let dist = Math.sqrt(dx*dx + dy*dy) || 1;
-
-                let force = 0.5;
-                b.vx += (dx/dist)*force;
-                b.vy += (dy/dist)*force;
-
-                // move
-                b.x += b.vx;
-                b.y += b.vy;
-
-                // bounce
-                if (b.x < 0 || b.x > canvas.width) b.vx *= -1;
-                if (b.y < 0 || b.y > canvas.height) b.vy *= -1;
-
-                // draw
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
-                ctx.fillStyle = b.color;
-                ctx.fill();
-            });
-
-            requestAnimationFrame(loop);
-        }
-
-        loop();
-        <\/script>
-    </body>
-    </html>
-    `);
-
-    win.document.close();
-}
+</html>
