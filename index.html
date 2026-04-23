@@ -951,14 +951,36 @@
                     checkState();
                 });
                 
-                // Store full SDP for advanced use (not shown by default)
-                window.fullOfferSDP = btoa(JSON.stringify(peerConnection.localDescription));
+                // Store full SDP for advanced use
+                const offerStr = JSON.stringify(peerConnection.localDescription);
+                window.fullOfferSDP = btoa(offerStr);
+                
+                // === REAL SIGNALING: Save offer to localStorage so mobile can pick it up ===
+                localStorage.setItem('questlink_offer_' + shortCode, offerStr);
+                
+                // Listen for answer via BroadcastChannel (works across tabs)
+                const bc = new BroadcastChannel('questlink_signaling');
+                bc.onmessage = (event) => {
+                    if (event.data.type === 'answer' && event.data.code === shortCode) {
+                        const answerDesc = JSON.parse(event.data.answer);
+                        peerConnection.setRemoteDescription(new RTCSessionDescription(answerDesc))
+                            .then(() => {
+                                showToast('Mobile client connected via code!', 'success');
+                                document.getElementById('vr-status').innerHTML = `
+                                    <div class="w-2 h-2 bg-emerald-400 rounded-full status-dot"></div>
+                                    <span>CONNECTED • 1 USER</span>
+                                `;
+                            })
+                            .catch(console.error);
+                    }
+                };
+                window.questlinkBC = bc; // keep reference
                 
                 // Show only the short 5-digit code
                 document.getElementById('connection-code-display').innerHTML = connectionCode;
                 document.getElementById('connection-code-display').classList.add('text-emerald-300', 'text-4xl', 'tracking-[4px]');
                 
-                showToast('5-digit code generated! Enter it on the mobile device.', 'success');
+                showToast('5-digit code generated! Enter it on the mobile device to connect.', 'success');
                 
                 // Update status
                 document.getElementById('vr-status').innerHTML = `
@@ -997,49 +1019,60 @@
             try {
                 if (!peerConnection) createPeerConnection(false);
                 
-                // For demo: since we use short code, we simulate the offer/answer handshake
-                // In real use with signaling server this would fetch the offer by code
-                // Here we create answer and auto-complete for seamless one-sided experience
+                // === REAL SIGNALING: Read the offer that the VR host saved ===
+                const offerStr = localStorage.getItem('questlink_offer_' + input);
+                if (!offerStr) {
+                    showToast('No VR host found with that code. Make sure the VR side generated it first.', 'error');
+                    return;
+                }
                 
+                const offerDesc = JSON.parse(offerStr);
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offerDesc));
+                
+                // Create answer
                 const answer = await peerConnection.createAnswer({
                     offerToReceiveVideo: true,
                     offerToReceiveAudio: false
                 });
                 await peerConnection.setLocalDescription(answer);
                 
-                // Simulate successful remote connection (in real app this would come from VR host)
-                // For this demo, we mark as connected and start streams
+                // Send answer back to VR host via BroadcastChannel
+                const bc = new BroadcastChannel('questlink_signaling');
+                bc.postMessage({
+                    type: 'answer',
+                    code: input,
+                    answer: JSON.stringify(peerConnection.localDescription)
+                });
+                bc.close();
+                
+                // Also save answer to localStorage (backup)
+                localStorage.setItem('questlink_answer_' + input, JSON.stringify(peerConnection.localDescription));
+                
+                // Update mobile UI to connected
+                document.getElementById('mobile-status').innerHTML = `
+                    <div class="w-2 h-2 bg-emerald-400 rounded-full status-dot"></div>
+                    <span>CONNECTED TO VR</span>
+                `;
+                document.getElementById('mobile-status').className = 'px-4 py-1 rounded-3xl text-xs font-bold flex items-center gap-x-2 bg-emerald-900/60 text-emerald-400 border border-emerald-700/50';
+                
+                // Auto-request camera
+                const cameraBtn = document.getElementById('camera-btn');
+                if (cameraBtn && !localStream) {
+                    requestCameraPermission();
+                }
+                
+                showToast('Connected! Your camera is now streaming as 360° view to VR.', 'success');
+                
+                // If data channel ready, request screen share from VR
                 setTimeout(() => {
-                    // Update mobile UI to connected
-                    document.getElementById('mobile-status').innerHTML = `
-                        <div class="w-2 h-2 bg-emerald-400 rounded-full status-dot"></div>
-                        <span>CONNECTED TO VR</span>
-                    `;
-                    document.getElementById('mobile-status').className = 'px-4 py-1 rounded-3xl text-xs font-bold flex items-center gap-x-2 bg-emerald-900/60 text-emerald-400 border border-emerald-700/50';
-                    
-                    // Auto-request camera if not already
-                    const cameraBtn = document.getElementById('camera-btn');
-                    if (cameraBtn && !localStream) {
-                        requestCameraPermission();
-                    }
-                    
-                    showToast('Connected to VR host! Your camera is now streaming as 360° view.', 'success');
-                    
-                    // Notify "VR host" (in demo this just shows a toast on this page)
-                    // In real cross-device this would use signaling
-                    setTimeout(() => {
-                        showToast('VR host notified — streams active!', 'info');
-                    }, 800);
-                    
-                    // If data channel ready, request screen share from VR
                     if (dataChannel && dataChannel.readyState === 'open') {
                         dataChannel.send(JSON.stringify({ type: 'request-screen' }));
                     }
-                }, 600);
+                }, 1200);
                 
             } catch (err) {
                 console.error(err);
-                showToast('Connection failed. Make sure you entered the correct 5-digit code.', 'error');
+                showToast('Connection failed: ' + err.message, 'error');
             }
         }
         
