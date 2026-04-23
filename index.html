@@ -295,38 +295,25 @@
                         <p class="text-center text-xs text-zinc-500 mt-2">Requests Meta Quest permission • WebXR immersive-vr</p>
                     </div>
                     
-                    <!-- IP & Connection -->
+                    <!-- Connection -->
                     <div class="bg-zinc-950 border border-zinc-800 rounded-2xl p-5">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="text-sm font-semibold flex items-center gap-x-2">
-                                <i class="fa-solid fa-globe text-cyan-400"></i>
-                                <span>YOUR PUBLIC IP</span>
+                        <div class="text-sm font-semibold mb-2 flex items-center gap-x-2">
+                            <i class="fa-solid fa-link text-emerald-400"></i>
+                            <span>CONNECTION CODE (Share with mobile user)</span>
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            <div id="connection-code-display" 
+                                 class="flex-1 connection-code bg-black border border-zinc-700 text-emerald-400 px-4 py-3 rounded-2xl text-sm font-mono break-all">
+                                — Generate after entering VR —
                             </div>
-                            <button onclick="copyIP()" class="text-xs px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded-xl flex items-center gap-x-1">
+                            <button onclick="copyConnectionCode()" 
+                                    class="px-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl flex items-center justify-center">
                                 <i class="fa-solid fa-copy"></i>
-                                <span>COPY</span>
                             </button>
                         </div>
                         
-                        <div id="public-ip" class="connection-code text-2xl font-mono font-bold text-white tracking-tighter">192.168.1.105</div>
-                        
-                        <div class="mt-4 pt-4 border-t border-zinc-800">
-                            <div class="text-sm font-semibold mb-2 flex items-center gap-x-2">
-                                <i class="fa-solid fa-link text-emerald-400"></i>
-                                <span>CONNECTION CODE (Share with mobile user)</span>
-                            </div>
-                            
-                            <div class="flex gap-2">
-                                <div id="connection-code-display" 
-                                     class="flex-1 connection-code bg-black border border-zinc-700 text-emerald-400 px-4 py-3 rounded-2xl text-sm font-mono break-all">
-                                    — Generate after entering VR —
-                                </div>
-                                <button onclick="copyConnectionCode()" 
-                                        class="px-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl flex items-center justify-center">
-                                    <i class="fa-solid fa-copy"></i>
-                                </button>
-                            </div>
-                        </div>
+                        <p class="text-xs text-zinc-500 mt-3">Copy this code and send it to the other device. No IP needed — WebRTC handles the connection.</p>
                     </div>
                     
                     <!-- Quest Screen Share -->
@@ -558,7 +545,6 @@
         let videoTexture = null;
         let videoElement360 = null;
         let animationFrame = null;
-        let publicIP = "192.168.1.105";
         let connectionCode = "";
         
         // Detect device
@@ -620,16 +606,7 @@
                 }
             }, 800);
             
-            // Get real public IP
-            try {
-                const res = await fetch('https://api.ipify.org?format=json');
-                const data = await res.json();
-                publicIP = data.ip;
-                document.getElementById('public-ip').textContent = publicIP;
-            } catch(e) {
-                // Fallback to simulated IP
-                document.getElementById('public-ip').textContent = publicIP;
-            }
+            // IP display removed — connection uses codes only
         }
         
         // Initialize Three.js for 360 preview
@@ -1150,6 +1127,10 @@
         
         // Start screen share from VR host
         async function startScreenShare() {
+            if (xrSession) {
+                showToast('Screen sharing is disabled while in immersive VR mode. Please exit VR first.', 'error');
+                return;
+            }
             if (!peerConnection || !isVRHost) {
                 showToast('Only VR host can share screen', 'error');
                 return;
@@ -1181,6 +1162,15 @@
         
         // Enter VR Mode (WebXR)
         async function enterVRMode() {
+            if (xrSession) {
+                showToast('VR session is already active!', 'info');
+                // Re-show modal if it was minimized
+                const modal = document.getElementById('vr-modal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                return;
+            }
+            
             const result = detectDevice();
             
             if (!navigator.xr) {
@@ -1214,6 +1204,16 @@
                 document.getElementById('enter-vr-btn').disabled = true;
                 document.getElementById('enter-vr-btn').classList.add('!from-emerald-600', '!to-emerald-600');
                 
+                // Disable screen share in immersive VR (not supported from within XR session)
+                const shareBtn = document.getElementById('screen-share-btn');
+                const shareStatus = document.getElementById('screen-share-status');
+                if (shareBtn) {
+                    shareBtn.disabled = true;
+                    shareBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    shareBtn.innerHTML = `<i class="fa-solid fa-desktop"></i> <span>Screen Share disabled in VR</span>`;
+                }
+                if (shareStatus) shareStatus.innerHTML = 'DISABLED';
+                
                 // Generate connection code if not already
                 if (!connectionCode) {
                     setTimeout(() => {
@@ -1241,6 +1241,17 @@
                 document.getElementById('vr-modal').classList.remove('flex');
                 document.getElementById('enter-vr-btn').disabled = false;
                 document.getElementById('enter-vr-btn').innerHTML = `<i class="fa-solid fa-glasses text-xl"></i> <span>ENTER IMMERSIVE VR MODE</span>`;
+                xrSession = null;
+                
+                // Re-enable screen share button
+                const shareBtn = document.getElementById('screen-share-btn');
+                const shareStatus = document.getElementById('screen-share-status');
+                if (shareBtn) {
+                    shareBtn.disabled = false;
+                    shareBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    shareBtn.innerHTML = `<i class="fa-solid fa-desktop"></i> <span>Share Quest View (for mobile users)</span>`;
+                }
+                if (shareStatus) shareStatus.innerHTML = 'READY';
             });
             
             // In a full implementation, we would attach Three.js renderer here
@@ -1258,14 +1269,6 @@
         }
         
         // Copy functions
-        function copyIP() {
-            navigator.clipboard.writeText(publicIP).then(() => {
-                showToast('IP copied to clipboard!', 'success');
-            }).catch(() => {
-                prompt('Your IP:', publicIP);
-            });
-        }
-        
         function copyConnectionCode() {
             const codeEl = document.getElementById('connection-code-display');
             if (codeEl.textContent.includes('Generate')) {
@@ -1322,7 +1325,7 @@
                                 <div class="w-8 h-8 flex-shrink-0 rounded-2xl bg-violet-600 flex items-center justify-center text-white font-bold">1</div>
                                 <div>
                                     <div class="font-semibold">VR User opens on Quest 2</div>
-                                    <div class="text-zinc-400">Clicks "Enter Immersive VR Mode" → grants WebXR permission. Generates connection code + public IP.</div>
+                                    <div class="text-zinc-400">Clicks "Enter Immersive VR Mode" → grants WebXR permission. Generates connection code (no IP needed).</div>
                                 </div>
                             </div>
                             
@@ -1399,15 +1402,7 @@
                 const result = detectDevice();
                 updateDetectionUI(result);
                 
-                // Auto fetch IP
-                fetch('https://api.ipify.org?format=json')
-                    .then(r => r.json())
-                    .then(data => {
-                        publicIP = data.ip;
-                        const ipEl = document.getElementById('public-ip');
-                        if (ipEl) ipEl.textContent = publicIP;
-                    })
-                    .catch(() => {});
+                // No IP fetch needed — using connection codes only
             }, 600);
             
             // Demo tip after 12 seconds
