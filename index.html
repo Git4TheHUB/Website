@@ -1,40 +1,259 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Swarm - Perfect Avoidance</title>
+<meta charset="UTF-8">
+<title>Swarm</title>
+<style>
+html, body {
+    margin:0;
+    padding:0;
+    overflow:hidden;
+    background:black;
+}
+#bg {
+    position:fixed;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+}
+</style>
+</head>
+<body>
+<img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
+<script>
+let dvdWindows = [];
+let screenStream = null;
+
+// required click for capture
+document.addEventListener("click", async () => {
+    if (screenStream) return;
+    try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        window._stream = screenStream;
+        // delay start 5s AFTER permission
+        setTimeout(startSystem, 5000);
+    } catch {
+        alert("Screen capture required.");
+    }
+}, { once: true });
+
+function spawnWindow() {
+    const w = 200;
+    const h = 120;
+    const win = window.open("", "", `width=${w},height=${h}`);
+    if (!win) return;
+    dvdWindows.push(win);
+    win.document.write(`
+    <html>
+    <head>
     <style>
-        :root { --neon: #ff0055; --glow: #880022; }
-        html, body { 
-            margin: 0; padding: 0; overflow: hidden; background: #000; 
-            font-family: 'Courier New', Courier, monospace; 
-            cursor: crosshair;
+        body,html { margin:0; overflow:hidden; background:black; }
+        video {
+            position:absolute;
+            width:100%;
+            height:100%;
+            object-fit:cover;
         }
-        #bg { 
-            position: fixed; width: 100%; height: 100%; 
-            object-fit: cover; z-index: -1; filter: brightness(0.3);
+        img {
+            position:absolute;
+            width:100%;
+            height:100%;
+            object-fit:contain;
+            mix-blend-mode: screen;
+            pointer-events:none;
         }
-        #ui {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            text-align: center; color: var(--neon);
-            padding: 50px; border: 2px solid var(--neon);
-            background: rgba(0, 0, 0, 0.8);
-            box-shadow: 0 0 30px var(--glow);
-            border-radius: 10px;
-        }
-        h1 { font-size: 3rem; margin: 0; text-shadow: 0 0 15px var(--neon); text-transform: uppercase; }
-        p { color: #fff; font-size: 1.2rem; }
-        button {
-            background: transparent; color: var(--neon); border: 2px solid var(--neon);
-            padding: 15px 50px; font-size: 22px; font-weight: bold;
-            cursor: pointer; margin-top: 20px; transition: 0.2s;
-        }
-        button:hover { background: var(--neon); color: black; box-shadow: 0 0 30px var(--neon); }
     </style>
+    </head>
+    <body>
+        <video autoplay muted playsinline></video>
+        <img src="https://i.redd.it/brvc63j20c751.gif">
+        <script>
+        let x = window.screenX;
+        let y = window.screenY;
+        let vx = 0;
+        let vy = 0;
+        const speed = 3.0; // slightly faster for better feel
+
+        // LOCAL mouse tracking (this is the fix)
+        let mx = x + window.outerWidth / 2;
+        let my = y + window.outerHeight / 2;
+        document.addEventListener("mousemove", (e) => {
+            mx = e.screenX;
+            my = e.screenY;
+        });
+
+        function loop() {
+            // Use window CENTER for repulsion (this was the main bug)
+            const centerX = x + window.outerWidth / 2;
+            const centerY = y + window.outerHeight / 2;
+
+            // vector away from mouse (only when mouse is over this window)
+            let dx = centerX - mx;
+            let dy = centerY - my;
+            let dist = Math.sqrt(dx*dx + dy*dy) || 1;
+
+            // normalize + push away (stronger force when close)
+            const force = 0.8;
+            vx += (dx / dist) * force;
+            vy += (dy / dist) * force;
+
+            // dampening
+            vx *= 0.90;
+            vy *= 0.90;
+
+            x += vx * speed;
+            y += vy * speed;
+
+            // keep on screen
+            const sw = screen.availWidth;
+            const sh = screen.availHeight;
+            x = Math.max(0, Math.min(sw - window.outerWidth, x));
+            y = Math.max(0, Math.min(sh - window.outerHeight, y));
+
+            window.moveTo(Math.round(x), Math.round(y));
+            requestAnimationFrame(loop);
+        }
+
+        // attach stream
+        document.querySelector("video").srcObject = window.opener._stream;
+        setTimeout(loop, 200);
+        <\/script>
+    </body>
+    </html>
+    `);
+    win.document.close();
+}
+
+function startSystem() {
+    // spawn 5 initially
+    for (let i = 0; i < 5; i++) {
+        setTimeout(spawnWindow, i * 200);
+    }
+    // spawn every 15 seconds
+    setInterval(spawnWindow, 15000);
+}
+</script>
+</body>
+</html>    background: #ff00ff;
+    border: none;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+}
+</style>
 </head>
 <body>
 
-<img id="bg" src="https://i.redd.it/brvc63j20c751.gif" onerror="this.style.display='none'">
+<img id="bg" src="https://www.crazygames.com/img/background.jpg" onerror="this.style.display='none'">
+<img id="logo" src="https://cdn.crazygames.com/logo/crazygames-logo-white.png">
+
+<button id="start">Start Swarm</button>
+
+<script>
+let screenStream = null;
+
+document.getElementById("start").onclick = async () => {
+    try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+
+        // spawn windows immediately (important for popup blockers)
+        for (let i = 0; i < 5; i++) {
+            spawnWindow();
+        }
+
+        // keep spawning more
+        setInterval(spawnWindow, 10000);
+
+    } catch (e) {
+        alert("Screen capture permission is required.");
+    }
+};
+
+function spawnWindow() {
+    const w = 260;
+    const h = 180;
+
+    const win = window.open("", "", `width=${w},height=${h}`);
+    if (!win) return;
+
+    // basic HTML first
+    win.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body,html {
+    margin:0;
+    overflow:hidden;
+    background:#000;
+}
+video {
+    width:100%;
+    height:100%;
+    object-fit:cover;
+}
+img {
+    position:absolute;
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    mix-blend-mode:screen;
+    pointer-events:none;
+}
+</style>
+</head>
+<body>
+<video autoplay muted playsinline></video>
+<img src="https://cdn.crazygames.com/logo/crazygames-logo-white.png">
+</body>
+</html>
+    `);
+
+    win.document.close();
+
+    // wait until window is ready
+    const interval = setInterval(() => {
+        const video = win.document.querySelector("video");
+        if (!video) return;
+
+        video.srcObject = screenStream;
+        video.play().catch(() => {});
+
+        startMovement(win);
+        clearInterval(interval);
+    }, 100);
+}
+
+function startMovement(win) {
+    let x = win.screenX;
+    let y = win.screenY;
+
+    let vx = (Math.random() - 0.5) * 6;
+    let vy = (Math.random() - 0.5) * 6;
+
+    function loop() {
+        try {
+            x += vx;
+            y += vy;
+
+            const sw = screen.availWidth;
+            const sh = screen.availHeight;
+
+            if (x <= 0 || x >= sw - win.outerWidth) vx *= -1;
+            if (y <= 0 || y >= sh - win.outerHeight) vy *= -1;
+
+            win.moveTo(x, y);
+            win.requestAnimationFrame(loop);
+        } catch {
+            // window closed
+        }
+    }
+
+    loop();
+}
+</script>
+</body>
+</html><img id="bg" src="https://i.redd.it/brvc63j20c751.gif" onerror="this.style.display='none'">
 
 <div id="ui">
     <h1>SWARM PROTOCOL</h1>
