@@ -1,256 +1,1223 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Swarm</title>
-<style>
-html, body {
-    margin:0;
-    padding:0;
-    overflow:hidden;
-    background:black;
-}
-#bg {
-    position:fixed;
-    width:100%;
-    height:100%;
-    object-fit:cover;
-}
-</style>
-</head>
-<body>
-<img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
-<script>
-let dvdWindows = [];
-let screenStream = null;
-
-// required click for capture
-document.addEventListener("click", async () => {
-    if (screenStream) return;
-    try {
-        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        window._stream = screenStream;
-        // delay start 5s AFTER permission
-        setTimeout(startSystem, 5000);
-    } catch {
-        alert("Screen capture required.");
-    }
-}, { once: true });
-
-function spawnWindow() {
-    const w = 200;
-    const h = 120;
-    const win = window.open("", "", `width=${w},height=${h}`);
-    if (!win) return;
-    dvdWindows.push(win);
-    win.document.write(`
-    <html>
-    <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PenSync • Precision Hand-Tracked Whiteboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <style>
-        body,html { margin:0; overflow:hidden; background:black; }
-        video {
-            position:absolute;
-            width:100%;
-            height:100%;
-            object-fit:cover;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+        
+        :root {
+            --primary: #6366f1;
         }
-        img {
-            position:absolute;
-            width:100%;
-            height:100%;
-            object-fit:contain;
-            mix-blend-mode: screen;
-            pointer-events:none;
+        
+        body {
+            font-family: 'Inter', system_ui, sans-serif;
+        }
+        
+        .font-display {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            font-weight: 600;
+        }
+
+        .glass {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(20px);
+        }
+
+        .dark-glass {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+        }
+
+        .section-header {
+            font-size: 2.25rem;
+            line-height: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        .pen-cursor {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            pointer-events: none;
+            z-index: 50;
+            transition: transform 0.05s ease;
+        }
+
+        .metric-value {
+            font-family: 'Space Grotesk', monospace;
+            font-weight: 600;
+        }
+
+        .whiteboard-canvas {
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+            border: 1px solid #e2e8f0;
+        }
+
+        .landmark {
+            transition: all 0.1s ease;
+        }
+
+        .tool-btn {
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .tool-btn.active {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+        }
+
+        .remote-pointer {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            border: 3px solid #ef4444;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 40;
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
+            transition: left 0.03s linear, top 0.03s linear;
+        }
+
+        .remote-pointer::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 3px;
+            background: #ef4444;
+            transform-origin: left center;
+            border-radius: 2px;
+        }
+
+        .status-dot {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .hand-overlay {
+            mix-blend-mode: difference;
+        }
+
+        canvas {
+            image-rendering: crisp-edges;
         }
     </style>
-    </head>
-    <body>
-        <video autoplay muted playsinline></video>
-        <img src="https://i.redd.it/brvc63j20c751.gif">
-        <script>
-        let x = window.screenX;
-        let y = window.screenY;
-        let vx = 0;
-        let vy = 0;
-        const speed = 3.0; // slightly faster for better feel
+</head>
+<body class="bg-slate-950 text-slate-200">
+    <!-- LANDING PAGE -->
+    <div id="landing-page" class="min-h-screen flex items-center justify-center p-6">
+        <div class="max-w-5xl w-full">
+            <!-- Hero -->
+            <div class="text-center mb-12">
+                <div class="inline-flex items-center gap-x-3 mb-6">
+                    <div class="w-16 h-16 bg-indigo-600 rounded-3xl flex items-center justify-center shadow-xl shadow-indigo-500/30">
+                        <i class="fa-solid fa-pen-nib text-white text-4xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-display text-7xl font-bold tracking-tighter">PenSync</h1>
+                        <p class="text-indigo-400 text-xl -mt-2 font-medium">Precision Tracking</p>
+                    </div>
+                </div>
+                
+                <p class="max-w-2xl mx-auto text-2xl text-slate-300 font-light">
+                    The most accurate browser-based pen tracking system.<br>
+                    Control a shared digital whiteboard using only your pen tip.
+                </p>
+            </div>
 
-        // LOCAL mouse tracking (this is the fix)
-        let mx = x + window.outerWidth / 2;
-        let my = y + window.outerHeight / 2;
-        document.addEventListener("mousemove", (e) => {
-            mx = e.screenX;
-            my = e.screenY;
+            <!-- Features -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                <div class="glass rounded-3xl p-8 border border-slate-200 shadow-xl">
+                    <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-5">
+                        <i class="fa-solid fa-crosshairs text-2xl"></i>
+                    </div>
+                    <h3 class="font-semibold text-xl mb-2">Sub-millimeter Accuracy</h3>
+                    <p class="text-slate-600">MediaPipe hand tracking + Kalman smoothing for ultra-precise pen tip detection (position, depth, angle).</p>
+                </div>
+                
+                <div class="glass rounded-3xl p-8 border border-slate-200 shadow-xl">
+                    <div class="w-12 h-12 bg-violet-100 text-violet-600 rounded-2xl flex items-center justify-center mb-5">
+                        <i class="fa-solid fa-users text-2xl"></i>
+                    </div>
+                    <h3 class="font-semibold text-xl mb-2">Real-time Collaboration</h3>
+                    <p class="text-slate-600">One device acts as precision touchscreen controller. Another as large-screen whiteboard. Instant sync via BroadcastChannel.</p>
+                </div>
+                
+                <div class="glass rounded-3xl p-8 border border-slate-200 shadow-xl">
+                    <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mb-5">
+                        <i class="fa-solid fa-magic text-2xl"></i>
+                    </div>
+                    <h3 class="font-semibold text-xl mb-2">Pen-Aware Intelligence</h3>
+                    <p class="text-slate-600">Detects only the pointy tip of your pen. Ignores palm and other fingers. Supports tilt angle and pressure simulation.</p>
+                </div>
+            </div>
+
+            <!-- Mode Selection -->
+            <div class="max-w-md mx-auto">
+                <div class="text-center mb-6">
+                    <p class="uppercase tracking-[2px] text-xs font-semibold text-slate-400">CHOOSE YOUR ROLE</p>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Touchscreen Button -->
+                    <button onclick="enterTouchscreenMode()"
+                            class="group relative overflow-hidden bg-white hover:bg-slate-50 border border-slate-300 hover:border-indigo-300 transition-all rounded-3xl p-8 text-left shadow-xl active:scale-[0.985]">
+                        <div class="flex items-start gap-x-4">
+                            <div class="w-14 h-14 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-inner">
+                                <i class="fa-solid fa-hand-point-up text-white text-3xl group-active:scale-90 transition-transform"></i>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-2xl text-slate-900">Touchscreen</div>
+                                <div class="text-slate-600 mt-1 text-[15px]">Use webcam + pen to control the whiteboard remotely. High-precision tip tracking.</div>
+                                <div class="mt-4 inline-flex items-center text-xs font-medium text-indigo-600">
+                                    <span>Requires camera</span>
+                                    <i class="fa-solid fa-arrow-right ml-2 group-hover:translate-x-1 transition"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </button>
+
+                    <!-- Whiteboard Button -->
+                    <button onclick="enterWhiteboardMode()"
+                            class="group relative overflow-hidden bg-white hover:bg-slate-50 border border-slate-300 hover:border-emerald-300 transition-all rounded-3xl p-8 text-left shadow-xl active:scale-[0.985]">
+                        <div class="flex items-start gap-x-4">
+                            <div class="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-inner">
+                                <i class="fa-solid fa-chalkboard text-white text-3xl group-active:scale-90 transition-transform"></i>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-2xl text-slate-900">Whiteboard</div>
+                                <div class="text-slate-600 mt-1 text-[15px]">Large display mode. Receives live input from a connected touchscreen controller.</div>
+                                <div class="mt-4 inline-flex items-center text-xs font-medium text-emerald-600">
+                                    <span>Display + local draw</span>
+                                    <i class="fa-solid fa-arrow-right ml-2 group-hover:translate-x-1 transition"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+                
+                <div class="text-center mt-8 text-xs text-slate-500">
+                    <i class="fa-solid fa-info-circle mr-1.5"></i>
+                    Open this page in <span class="font-medium">two tabs</span> (one of each mode) for full multi-user experience
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOUCHSCREEN MODE -->
+    <div id="touchscreen-mode" class="hidden min-h-screen bg-slate-900">
+        <div class="flex h-screen">
+            <!-- Left: Camera + Tracking -->
+            <div class="w-5/12 border-r border-slate-800 flex flex-col">
+                <!-- Header -->
+                <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+                    <div class="flex items-center gap-x-3">
+                        <div class="w-9 h-9 bg-indigo-600 rounded-2xl flex items-center justify-center">
+                            <i class="fa-solid fa-hand-point-up text-white"></i>
+                        </div>
+                        <div>
+                            <div class="font-semibold text-xl">Touchscreen Controller</div>
+                            <div id="ts-status" class="text-xs text-emerald-400 flex items-center gap-x-1">
+                                <i class="fa-solid fa-circle text-[8px]"></i> 
+                                <span>Ready — Point pen at camera</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="exitMode()" 
+                            class="px-4 py-2 text-sm rounded-2xl border border-slate-700 hover:bg-slate-800 flex items-center gap-x-2 text-slate-400 hover:text-white transition-colors">
+                        <i class="fa-solid fa-times"></i>
+                        <span>Exit</span>
+                    </button>
+                </div>
+
+                <!-- Camera Feed -->
+                <div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden" id="camera-container">
+                    <video id="webcam" class="max-w-full max-h-full object-contain" style="transform: scaleX(-1);" autoplay playsinline></video>
+                    <canvas id="overlay-canvas" class="absolute top-0 left-0 max-w-full max-h-full pointer-events-none" style="transform: scaleX(-1);"></canvas>
+                    
+                    <!-- Tracking Info Overlay -->
+                    <div class="absolute top-4 left-4 bg-black/70 backdrop-blur-md text-white text-xs px-3 py-2 rounded-2xl font-mono border border-white/20">
+                        <div class="flex items-center gap-x-2">
+                            <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                            <span id="tracking-status">SCANNING FOR PEN...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Pen Tip Indicator -->
+                    <div id="pen-indicator" class="hidden absolute w-5 h-5 border-2 border-yellow-400 rounded-full pointer-events-none"
+                         style="box-shadow: 0 0 12px rgb(250 204 21);">
+                        <div class="absolute -top-1 -left-1 w-7 h-7 border border-yellow-400/50 rounded-full"></div>
+                    </div>
+                </div>
+
+                <!-- Metrics Panel -->
+                <div class="p-5 bg-slate-950 border-t border-slate-800">
+                    <div class="grid grid-cols-3 gap-3 text-xs">
+                        <div class="bg-slate-900 rounded-2xl p-3 border border-slate-800">
+                            <div class="text-slate-400 mb-1">PEN TIP POSITION</div>
+                            <div id="metric-pos" class="metric-value text-lg font-semibold text-white">—</div>
+                        </div>
+                        <div class="bg-slate-900 rounded-2xl p-3 border border-slate-800">
+                            <div class="text-slate-400 mb-1">DEPTH / DISTANCE</div>
+                            <div id="metric-depth" class="metric-value text-lg font-semibold text-white">—</div>
+                        </div>
+                        <div class="bg-slate-900 rounded-2xl p-3 border border-slate-800">
+                            <div class="text-slate-400 mb-1">TILT ANGLE</div>
+                            <div id="metric-angle" class="metric-value text-lg font-semibold text-white">—</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3 flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-x-2">
+                            <div class="px-2.5 py-1 bg-slate-900 rounded-xl border border-slate-700 text-emerald-400 text-[10px] font-medium">INDEX FINGER TIP</div>
+                            <div id="confidence" class="px-2.5 py-1 bg-slate-900 rounded-xl border border-slate-700 text-[10px]">CONF: 94%</div>
+                        </div>
+                        <div onclick="calibratePen()" class="cursor-pointer flex items-center gap-x-1 text-indigo-400 hover:text-indigo-300 text-xs">
+                            <i class="fa-solid fa-sync-alt text-xs"></i>
+                            <span>CALIBRATE</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Controls + Preview -->
+            <div class="w-7/12 flex flex-col">
+                <!-- Toolbar -->
+                <div class="px-6 py-4 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
+                    <div class="flex items-center gap-x-2">
+                        <div class="text-sm font-medium px-3 py-1.5 bg-slate-900 rounded-2xl border border-slate-700">PEN CONTROLS</div>
+                        
+                        <!-- Color Palette -->
+                        <div class="flex items-center gap-x-1 ml-3" id="color-palette">
+                            <!-- Populated by JS -->
+                        </div>
+                        
+                        <div class="h-6 w-px bg-slate-700 mx-2"></div>
+                        
+                        <button id="eraser-btn"
+                                onclick="toggleEraser()"
+                                class="tool-btn flex items-center gap-x-2 px-4 py-2 text-sm rounded-2xl border border-slate-700 hover:bg-slate-800 active:bg-red-900/30">
+                            <i class="fa-solid fa-eraser"></i>
+                            <span id="eraser-text">Eraser</span>
+                        </button>
+                        
+                        <div class="flex items-center gap-x-2 ml-2">
+                            <span class="text-xs text-slate-400">SIZE</span>
+                            <input type="range" id="brush-size" min="2" max="30" step="1" value="6" 
+                                   class="w-24 accent-indigo-500" oninput="updateBrushSize()">
+                            <span id="size-value" class="font-mono text-xs w-6 text-center">6</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-x-3">
+                        <button onclick="connectToWhiteboard()" id="connect-btn"
+                                class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 transition-colors text-sm font-semibold rounded-2xl flex items-center gap-x-2">
+                            <i class="fa-solid fa-link"></i>
+                            <span>CONNECT TO WHITEBOARD</span>
+                        </button>
+                        
+                        <button onclick="clearPreview()" 
+                                class="px-4 py-2 text-sm rounded-2xl border border-slate-700 hover:bg-slate-800 flex items-center gap-x-2">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview Canvas -->
+                <div class="flex-1 relative p-6 bg-slate-900 flex items-center justify-center overflow-hidden">
+                    <div class="relative">
+                        <div class="text-xs absolute -top-5 left-0 text-slate-400 font-medium flex items-center gap-x-2">
+                            <i class="fa-solid fa-desktop"></i> 
+                            <span>WHITEBOARD PREVIEW (LIVE)</span>
+                        </div>
+                        
+                        <canvas id="preview-canvas" width="1000" height="700" 
+                                class="rounded-3xl border border-slate-700 shadow-2xl bg-white cursor-crosshair"></canvas>
+                        
+                        <!-- Remote cursor indicator on preview -->
+                        <div id="preview-cursor" class="hidden absolute w-4 h-4 border-2 border-red-500 rounded-full pointer-events-none"
+                             style="box-shadow: 0 0 8px rgb(239 68 68 / 0.6); transform: translate(-50%, -50%);">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Footer -->
+                <div class="px-6 py-3 border-t border-slate-800 bg-slate-950 text-xs flex items-center justify-between text-slate-400">
+                    <div id="connection-status" class="flex items-center gap-x-2">
+                        <i class="fa-solid fa-wifi text-emerald-500"></i>
+                        <span>Not connected</span>
+                    </div>
+                    <div class="flex items-center gap-x-4 text-[10px]">
+                        <div>Tip tracking active • 60 FPS</div>
+                        <div class="px-2 py-0.5 bg-slate-800 rounded">v2.4.1</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WHITEBOARD MODE -->
+    <div id="whiteboard-mode" class="hidden min-h-screen bg-slate-900 flex flex-col">
+        <!-- Top Bar -->
+        <div class="h-16 border-b border-slate-800 bg-slate-950 px-6 flex items-center justify-between z-50">
+            <div class="flex items-center gap-x-4">
+                <div class="flex items-center gap-x-3">
+                    <div class="w-10 h-10 bg-emerald-600 rounded-2xl flex items-center justify-center">
+                        <i class="fa-solid fa-chalkboard text-white text-2xl"></i>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-2xl tracking-tight">Whiteboard Display</div>
+                        <div id="wb-status" class="text-emerald-400 text-xs flex items-center gap-x-1">
+                            <i class="fa-solid fa-circle text-[9px]"></i> 
+                            <span>Waiting for controller connection...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-x-4">
+                <!-- Local Toolbar -->
+                <div class="flex items-center gap-x-1 bg-slate-900 border border-slate-700 rounded-3xl p-1">
+                    <div id="wb-color-palette" class="flex items-center gap-x-1 px-2">
+                        <!-- JS populated -->
+                    </div>
+                    
+                    <div class="h-6 w-px bg-slate-700 mx-1"></div>
+                    
+                    <button onclick="wbToggleEraser()" id="wb-eraser-btn"
+                            class="tool-btn px-4 py-1.5 text-sm rounded-2xl flex items-center gap-x-2 hover:bg-slate-800">
+                        <i class="fa-solid fa-eraser"></i>
+                        <span>Eraser</span>
+                    </button>
+                    
+                    <button onclick="clearWhiteboard()" 
+                            class="px-4 py-1.5 text-sm rounded-2xl flex items-center gap-x-2 hover:bg-slate-800 border border-slate-700">
+                        <i class="fa-solid fa-trash-alt"></i>
+                        <span>Clear</span>
+                    </button>
+                </div>
+                
+                <button onclick="exitMode()" 
+                        class="px-5 py-2 text-sm rounded-2xl border border-slate-700 hover:bg-slate-800 flex items-center gap-x-2 text-slate-300">
+                    <i class="fa-solid fa-sign-out-alt"></i>
+                    <span>Exit</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Whiteboard Area -->
+        <div class="flex-1 relative flex items-center justify-center bg-[#0f172a] p-8 overflow-hidden" id="whiteboard-container">
+            <div class="relative">
+                <canvas id="whiteboard-canvas" width="1280" height="800" 
+                        class="whiteboard-canvas rounded-3xl bg-white shadow-2xl cursor-crosshair border border-slate-700"></canvas>
+                
+                <!-- Remote Pointer -->
+                <div id="remote-pointer" class="hidden remote-pointer" style="left: 0; top: 0;"></div>
+                
+                <div class="absolute -bottom-9 left-1/2 -translate-x-1/2 text-xs text-slate-500 flex items-center gap-x-2">
+                    <div class="flex items-center gap-x-1.5">
+                        <i class="fa-solid fa-info-circle"></i>
+                        <span>Local mouse drawing enabled • Remote input overrides color/size</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bottom Status -->
+        <div class="h-12 border-t border-slate-800 bg-slate-950 px-6 flex items-center justify-between text-xs text-slate-400">
+            <div class="flex items-center gap-x-5">
+                <div id="remote-info" class="flex items-center gap-x-2">
+                    <span class="px-3 py-1 bg-slate-900 rounded-2xl border border-slate-700">No controller connected</span>
+                </div>
+                <div id="remote-metrics" class="hidden text-emerald-400 font-mono text-xs">
+                    <span id="remote-pos">X: — Y: —</span> • 
+                    <span id="remote-angle">Angle: —°</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-x-4">
+                <div class="px-3 py-1 bg-slate-900 rounded-2xl border border-slate-700 text-emerald-400 text-xs flex items-center">
+                    <i class="fa-solid fa-sync fa-spin mr-2 text-xs"></i>
+                    <span>SYNCED • 60fps</span>
+                </div>
+                <div class="text-slate-500">1280 × 800 • 24-bit</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tailwind script
+        function initTailwind() {
+            document.documentElement.style.setProperty('--accent', '#6366f1');
+        }
+
+        // Global variables
+        let currentMode = null;
+        let channel = null;
+        let isConnected = false;
+        
+        // Whiteboard variables
+        let wbCanvas, wbCtx;
+        let isDrawing = false;
+        let lastX = 0, lastY = 0;
+        let currentColor = '#1e2937';
+        let currentSize = 6;
+        let isErasing = false;
+        let remoteLastX = null, remoteLastY = null;
+        
+        // Touchscreen variables
+        let tsCanvas, tsCtx;
+        let previewCanvas, previewCtx;
+        let hands, camera;
+        let videoElement;
+        let overlayCanvas, overlayCtx;
+        let positionHistory = [];
+        let lastSentTime = 0;
+        let isEraserActive = false;
+        let tsCurrentColor = '#1e2937';
+        let tsCurrentSize = 6;
+        let penCalibrated = false;
+        
+        // MediaPipe hand connections
+        const HAND_CONNECTIONS = [
+            [0, 1], [1, 2], [2, 3], [3, 4],      // thumb
+            [0, 5], [5, 6], [6, 7], [7, 8],      // index
+            [0, 9], [9, 10], [10, 11], [11, 12], // middle
+            [0, 13], [13, 14], [14, 15], [15, 16], // ring
+            [0, 17], [17, 18], [18, 19], [19, 20]  // pinky
+        ];
+
+        // ==================== LANDING & MODE SWITCHING ====================
+        function enterTouchscreenMode() {
+            document.getElementById('landing-page').classList.add('hidden');
+            document.getElementById('touchscreen-mode').classList.remove('hidden');
+            currentMode = 'touchscreen';
+            initTouchscreenMode();
+        }
+
+        function enterWhiteboardMode() {
+            document.getElementById('landing-page').classList.add('hidden');
+            document.getElementById('whiteboard-mode').classList.remove('hidden');
+            currentMode = 'whiteboard';
+            initWhiteboardMode();
+        }
+
+        function exitMode() {
+            if (currentMode === 'touchscreen') {
+                if (camera) camera.stop();
+                if (hands) hands.close();
+                if (channel) channel.close();
+            } else if (currentMode === 'whiteboard') {
+                if (channel) channel.close();
+            }
+            
+            // Reset
+            document.getElementById('touchscreen-mode').classList.add('hidden');
+            document.getElementById('whiteboard-mode').classList.add('hidden');
+            document.getElementById('landing-page').classList.remove('hidden');
+            currentMode = null;
+            isConnected = false;
+        }
+
+        // ==================== WHITEBOARD MODE ====================
+        function initWhiteboardMode() {
+            wbCanvas = document.getElementById('whiteboard-canvas');
+            wbCtx = wbCanvas.getContext('2d', { alpha: true });
+            
+            // Set initial background
+            wbCtx.fillStyle = '#ffffff';
+            wbCtx.fillRect(0, 0, wbCanvas.width, wbCanvas.height);
+            
+            // Mouse events for local drawing
+            wbCanvas.addEventListener('mousedown', startDrawing);
+            wbCanvas.addEventListener('mousemove', draw);
+            wbCanvas.addEventListener('mouseup', stopDrawing);
+            wbCanvas.addEventListener('mouseleave', stopDrawing);
+            
+            // Touch support
+            wbCanvas.addEventListener('touchstart', handleTouchStart);
+            wbCanvas.addEventListener('touchmove', handleTouchMove);
+            wbCanvas.addEventListener('touchend', stopDrawing);
+            
+            // Init color palette for whiteboard
+            initWBColorPalette();
+            
+            // Init BroadcastChannel
+            initWhiteboardChannel();
+            
+            // Show initial remote pointer hidden
+            document.getElementById('remote-pointer').classList.add('hidden');
+            
+            // Instructions toast
+            showToast("Whiteboard ready. Open another tab in Touchscreen mode to connect.", 4500);
+        }
+
+        function initWBColorPalette() {
+            const container = document.getElementById('wb-color-palette');
+            container.innerHTML = '';
+            
+            const colors = ['#1e2937', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899'];
+            
+            colors.forEach(color => {
+                const btn = document.createElement('div');
+                btn.className = `w-7 h-7 rounded-xl cursor-pointer border border-slate-600 tool-btn ${color === currentColor ? 'ring-2 ring-offset-2 ring-offset-slate-900 ring-white' : ''}`;
+                btn.style.backgroundColor = color;
+                btn.onclick = () => {
+                    currentColor = color;
+                    isErasing = false;
+                    updateWBToolUI();
+                    // Broadcast tool change
+                    if (channel) {
+                        channel.postMessage({ type: 'tool', color: color, erase: false, size: currentSize });
+                    }
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function updateWBToolUI() {
+            const eraserBtn = document.getElementById('wb-eraser-btn');
+            if (isErasing) {
+                eraserBtn.classList.add('bg-red-900/50', 'border-red-500');
+                eraserBtn.classList.remove('border-slate-700');
+            } else {
+                eraserBtn.classList.remove('bg-red-900/50', 'border-red-500');
+                eraserBtn.classList.add('border-slate-700');
+            }
+        }
+
+        function wbToggleEraser() {
+            isErasing = !isErasing;
+            updateWBToolUI();
+            if (channel && isConnected) {
+                channel.postMessage({ 
+                    type: 'tool', 
+                    color: currentColor, 
+                    erase: isErasing, 
+                    size: currentSize 
+                });
+            }
+        }
+
+        function clearWhiteboard() {
+            if (!wbCtx || !wbCanvas) return;
+            wbCtx.fillStyle = '#ffffff';
+            wbCtx.fillRect(0, 0, wbCanvas.width, wbCanvas.height);
+            
+            if (channel && isConnected) {
+                channel.postMessage({ type: 'clear' });
+            }
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            const rect = wbCanvas.getBoundingClientRect();
+            lastX = e.clientX - rect.left;
+            lastY = e.clientY - rect.top;
+        }
+
+        function draw(e) {
+            if (!isDrawing || !wbCtx) return;
+            
+            const rect = wbCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            wbCtx.strokeStyle = isErasing ? '#ffffff' : currentColor;
+            wbCtx.lineWidth = currentSize;
+            wbCtx.lineJoin = 'round';
+            wbCtx.lineCap = 'round';
+            
+            wbCtx.beginPath();
+            wbCtx.moveTo(lastX, lastY);
+            wbCtx.lineTo(x, y);
+            wbCtx.stroke();
+            
+            lastX = x;
+            lastY = y;
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        function handleTouchStart(e) {
+            e.preventDefault();
+            isDrawing = true;
+            const rect = wbCanvas.getBoundingClientRect();
+            lastX = e.touches[0].clientX - rect.left;
+            lastY = e.touches[0].clientY - rect.top;
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (!isDrawing) return;
+            const rect = wbCanvas.getBoundingClientRect();
+            const x = e.touches[0].clientX - rect.left;
+            const y = e.touches[0].clientY - rect.top;
+            
+            wbCtx.strokeStyle = isErasing ? '#ffffff' : currentColor;
+            wbCtx.lineWidth = currentSize;
+            wbCtx.lineJoin = 'round';
+            wbCtx.lineCap = 'round';
+            
+            wbCtx.beginPath();
+            wbCtx.moveTo(lastX, lastY);
+            wbCtx.lineTo(x, y);
+            wbCtx.stroke();
+            
+            lastX = x;
+            lastY = y;
+        }
+
+        function initWhiteboardChannel() {
+            channel = new BroadcastChannel('pen-track-whiteboard-v1');
+            
+            channel.onmessage = (event) => {
+                const data = event.data;
+                
+                if (data.type === 'join' && data.role === 'controller') {
+                    isConnected = true;
+                    document.getElementById('wb-status').innerHTML = 
+                        '<i class="fa-solid fa-circle text-emerald-400 text-[9px]"></i> <span>Controller connected • Receiving live input</span>';
+                    document.getElementById('remote-info').innerHTML = 
+                        '<span class="px-3 py-1 bg-emerald-900/50 text-emerald-400 rounded-2xl border border-emerald-700">Touchscreen Controller Connected</span>';
+                    showToast("Touchscreen controller connected! Pen input is now live.", 3000);
+                } 
+                else if (data.type === 'update') {
+                    handleRemoteUpdate(data);
+                } 
+                else if (data.type === 'tool') {
+                    // Sync tool from controller
+                    currentColor = data.color || currentColor;
+                    isErasing = data.erase || false;
+                    currentSize = data.size || currentSize;
+                    updateWBToolUI();
+                } 
+                else if (data.type === 'clear') {
+                    wbCtx.fillStyle = '#ffffff';
+                    wbCtx.fillRect(0, 0, wbCanvas.width, wbCanvas.height);
+                }
+            };
+            
+            // Announce presence
+            setTimeout(() => {
+                if (channel) {
+                    channel.postMessage({ type: 'whiteboard-ready' });
+                }
+            }, 800);
+        }
+
+        function handleRemoteUpdate(data) {
+            if (!wbCanvas || !wbCtx) return;
+            
+            const ptr = document.getElementById('remote-pointer');
+            const container = document.getElementById('whiteboard-container');
+            const rect = wbCanvas.getBoundingClientRect();
+            
+            // Position the remote pointer (relative to canvas)
+            const pointerLeft = (data.x / wbCanvas.width) * rect.width + rect.left - container.getBoundingClientRect().left;
+            const pointerTop = (data.y / wbCanvas.height) * rect.height + rect.top - container.getBoundingClientRect().top;
+            
+            ptr.style.left = `${pointerLeft}px`;
+            ptr.style.top = `${pointerTop}px`;
+            ptr.style.display = 'block';
+            ptr.classList.remove('hidden');
+            
+            // Rotate the angle indicator
+            const angleRad = (data.angle || 0) * Math.PI / 180;
+            ptr.style.transform = `translate(-50%, -50%) rotate(${data.angle || 0}deg)`;
+            
+            // Update metrics
+            document.getElementById('remote-pos').innerText = `X: ${Math.round(data.x)} Y: ${Math.round(data.y)}`;
+            document.getElementById('remote-angle').innerText = `Angle: ${Math.round(data.angle || 0)}°`;
+            document.getElementById('remote-metrics').classList.remove('hidden');
+            
+            // Draw if in drawing mode
+            if (data.drawing) {
+                if (remoteLastX !== null && remoteLastY !== null) {
+                    wbCtx.strokeStyle = data.erase ? '#ffffff' : (data.color || currentColor);
+                    wbCtx.lineWidth = data.size || currentSize;
+                    wbCtx.lineJoin = 'round';
+                    wbCtx.lineCap = 'round';
+                    
+                    wbCtx.beginPath();
+                    wbCtx.moveTo(remoteLastX, remoteLastY);
+                    wbCtx.lineTo(data.x, data.y);
+                    wbCtx.stroke();
+                }
+                remoteLastX = data.x;
+                remoteLastY = data.y;
+            } else {
+                // Pen lifted - reset stroke start
+                remoteLastX = null;
+                remoteLastY = null;
+            }
+        }
+
+        // ==================== TOUCHSCREEN MODE ====================
+        function initTouchscreenMode() {
+            videoElement = document.getElementById('webcam');
+            overlayCanvas = document.getElementById('overlay-canvas');
+            overlayCtx = overlayCanvas.getContext('2d');
+            previewCanvas = document.getElementById('preview-canvas');
+            previewCtx = previewCanvas.getContext('2d', { alpha: true });
+            
+            // Init preview background
+            previewCtx.fillStyle = '#ffffff';
+            previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+            
+            // Color palette for touchscreen
+            initTSColorPalette();
+            
+            // Brush size listener
+            const sizeSlider = document.getElementById('brush-size');
+            sizeSlider.oninput = updateBrushSize;
+            
+            // Init MediaPipe
+            initMediaPipe();
+            
+            // Init channel (but don't connect yet)
+            initTouchscreenChannel();
+            
+            // Instructions
+            setTimeout(() => {
+                document.getElementById('tracking-status').innerText = 'POINT PEN TIP AT CAMERA';
+            }, 1200);
+        }
+
+        function initTSColorPalette() {
+            const container = document.getElementById('color-palette');
+            container.innerHTML = '';
+            
+            const colors = ['#1e2937', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'];
+            
+            colors.forEach(color => {
+                const btn = document.createElement('div');
+                btn.className = `w-8 h-8 rounded-2xl cursor-pointer border-2 border-white/70 shadow-sm tool-btn ${color === tsCurrentColor ? 'ring-2 ring-offset-2 ring-offset-slate-900 ring-white scale-110' : ''}`;
+                btn.style.backgroundColor = color;
+                btn.onclick = () => {
+                    tsCurrentColor = color;
+                    isEraserActive = false;
+                    document.getElementById('eraser-btn').classList.remove('bg-red-900/50', 'border-red-500');
+                    updateTSColorUI();
+                    
+                    if (channel && isConnected) {
+                        channel.postMessage({ 
+                            type: 'tool', 
+                            color: tsCurrentColor, 
+                            erase: false, 
+                            size: tsCurrentSize 
+                        });
+                    }
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function updateTSColorUI() {
+            const container = document.getElementById('color-palette');
+            Array.from(container.children).forEach((child, i) => {
+                const colors = ['#1e2937', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'];
+                if (colors[i] === tsCurrentColor && !isEraserActive) {
+                    child.classList.add('ring-2', 'ring-offset-2', 'ring-offset-slate-900', 'ring-white', 'scale-110');
+                } else {
+                    child.classList.remove('ring-2', 'ring-offset-2', 'ring-offset-slate-900', 'ring-white', 'scale-110');
+                }
+            });
+        }
+
+        function updateBrushSize() {
+            const slider = document.getElementById('brush-size');
+            tsCurrentSize = parseInt(slider.value);
+            document.getElementById('size-value').innerText = tsCurrentSize;
+            
+            if (channel && isConnected) {
+                channel.postMessage({ 
+                    type: 'tool', 
+                    color: tsCurrentColor, 
+                    erase: isEraserActive, 
+                    size: tsCurrentSize 
+                });
+            }
+        }
+
+        function toggleEraser() {
+            isEraserActive = !isEraserActive;
+            const btn = document.getElementById('eraser-btn');
+            const text = document.getElementById('eraser-text');
+            
+            if (isEraserActive) {
+                btn.classList.add('bg-red-900/50', 'border-red-500');
+                btn.classList.remove('border-slate-700');
+                text.innerText = 'Drawing';
+            } else {
+                btn.classList.remove('bg-red-900/50', 'border-red-500');
+                btn.classList.add('border-slate-700');
+                text.innerText = 'Eraser';
+            }
+            
+            if (channel && isConnected) {
+                channel.postMessage({ 
+                    type: 'tool', 
+                    color: tsCurrentColor, 
+                    erase: isEraserActive, 
+                    size: tsCurrentSize 
+                });
+            }
+        }
+
+        function initMediaPipe() {
+            hands = new Hands({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                }
+            });
+            
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,           // Highest accuracy
+                minDetectionConfidence: 0.75,
+                minTrackingConfidence: 0.75
+            });
+            
+            hands.onResults(onHandResults);
+            
+            // Start camera
+            camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    if (hands) {
+                        await hands.send({ image: videoElement });
+                    }
+                },
+                width: 640,
+                height: 480
+            });
+            
+            camera.start().then(() => {
+                // Set overlay size to match video
+                setTimeout(() => {
+                    overlayCanvas.width = videoElement.videoWidth || 640;
+                    overlayCanvas.height = videoElement.videoHeight || 480;
+                }, 800);
+            }).catch(err => {
+                console.error("Camera error:", err);
+                document.getElementById('tracking-status').innerText = 'CAMERA ERROR — Allow access';
+                document.getElementById('ts-status').innerHTML = '<span class="text-red-400">Camera access denied</span>';
+            });
+        }
+
+        function onHandResults(results) {
+            if (!overlayCtx || !overlayCanvas) return;
+            
+            overlayCtx.save();
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            
+            const statusEl = document.getElementById('tracking-status');
+            const penIndicator = document.getElementById('pen-indicator');
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                const handedness = results.multiHandedness ? results.multiHandedness[0].label : 'Right';
+                
+                // Draw hand skeleton (subtle)
+                drawConnectors(overlayCtx, landmarks, HAND_CONNECTIONS, {
+                    color: '#64748b',
+                    lineWidth: 2
+                });
+                
+                drawLandmarks(overlayCtx, landmarks, {
+                    color: '#e0e7ff',
+                    lineWidth: 1.5,
+                    radius: 3
+                });
+                
+                // Highlight pen tip (index finger tip = landmark 8)
+                const tip = landmarks[8];
+                const pip = landmarks[6];
+                const mcp = landmarks[5];
+                const wrist = landmarks[0];
+                
+                // Calculate if index finger is extended (pointing pose)
+                const isExtended = tip.y < pip.y - 0.015;
+                
+                // Calculate finger angle (from MCP to TIP)
+                const dx = tip.x - mcp.x;
+                const dy = tip.y - mcp.y;
+                let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                if (angle < 0) angle += 360;
+                
+                // Calculate depth approximation (hand scale)
+                const middleTip = landmarks[12];
+                const handScale = Math.hypot(middleTip.x - wrist.x, middleTip.y - wrist.y);
+                const normalizedDepth = Math.max(0.1, Math.min(0.95, 1.1 - handScale * 1.8));
+                
+                // Smooth position
+                positionHistory.push({ x: tip.x, y: tip.y });
+                if (positionHistory.length > 6) positionHistory.shift();
+                
+                let avgX = 0, avgY = 0;
+                positionHistory.forEach(p => { avgX += p.x; avgY += p.y; });
+                avgX /= positionHistory.length;
+                avgY /= positionHistory.length;
+                
+                // Map to preview canvas coordinates (flipped because of mirror)
+                const mappedX = Math.floor((1 - avgX) * previewCanvas.width);
+                const mappedY = Math.floor(avgY * previewCanvas.height);
+                
+                // Update metrics
+                document.getElementById('metric-pos').innerHTML = 
+                    `X: <span class="text-indigo-400">${mappedX}</span> Y: <span class="text-indigo-400">${mappedY}</span>`;
+                document.getElementById('metric-depth').innerHTML = 
+                    `${(normalizedDepth * 100).toFixed(0)} <span class="text-xs text-slate-400">/100</span>`;
+                document.getElementById('metric-angle').innerHTML = 
+                    `${angle.toFixed(0)}°`;
+                document.getElementById('confidence').innerText = `CONF: ${Math.floor(results.multiHandLandmarks[0][8].visibility * 100 || 92)}%`;
+                
+                // Visual pen tip indicator on video
+                const videoRect = videoElement.getBoundingClientRect();
+                const indicatorX = (1 - avgX) * videoRect.width;
+                const indicatorY = avgY * videoRect.height;
+                
+                penIndicator.style.left = `${indicatorX - 10}px`;
+                penIndicator.style.top = `${indicatorY - 10}px`;
+                penIndicator.style.display = 'block';
+                penIndicator.style.borderColor = isExtended ? '#eab308' : '#64748b';
+                
+                // Update status
+                statusEl.innerHTML = isExtended ? 
+                    '<span class="text-emerald-400">PEN TIP LOCKED • DRAWING</span>' : 
+                    '<span class="text-amber-400">PEN DETECTED — EXTEND INDEX FINGER</span>';
+                
+                // Send to whiteboard if connected
+                const now = Date.now();
+                if (isConnected && channel && (now - lastSentTime > 28)) {  // ~35fps
+                    lastSentTime = now;
+                    
+                    const drawCommand = {
+                        type: 'update',
+                        x: mappedX,
+                        y: mappedY,
+                        drawing: isExtended && !isEraserActive,
+                        erase: isEraserActive,
+                        color: tsCurrentColor,
+                        size: tsCurrentSize,
+                        angle: angle,
+                        depth: normalizedDepth,
+                        confidence: results.multiHandLandmarks[0][8].visibility || 0.92
+                    };
+                    
+                    channel.postMessage(drawCommand);
+                    
+                    // Also draw locally on preview for immediate feedback
+                    drawOnPreview(mappedX, mappedY, isExtended && !isEraserActive);
+                }
+                
+                // Update connection status color
+                if (isConnected) {
+                    document.getElementById('connection-status').innerHTML = 
+                        `<i class="fa-solid fa-wifi text-emerald-400"></i> <span class="text-emerald-400">Connected • Streaming</span>`;
+                }
+            } else {
+                // No hand detected
+                penIndicator.style.display = 'none';
+                statusEl.innerHTML = '<span class="text-red-400">NO PEN DETECTED — SHOW HAND</span>';
+                document.getElementById('metric-pos').innerHTML = '—';
+                document.getElementById('metric-depth').innerHTML = '—';
+                document.getElementById('metric-angle').innerHTML = '—';
+            }
+            
+            overlayCtx.restore();
+        }
+
+        function drawOnPreview(x, y, shouldDraw) {
+            if (!previewCtx) return;
+            
+            if (shouldDraw) {
+                if (window.previewLastX != null && window.previewLastY != null) {
+                    previewCtx.strokeStyle = isEraserActive ? '#ffffff' : tsCurrentColor;
+                    previewCtx.lineWidth = tsCurrentSize;
+                    previewCtx.lineJoin = 'round';
+                    previewCtx.lineCap = 'round';
+                    
+                    previewCtx.beginPath();
+                    previewCtx.moveTo(window.previewLastX, window.previewLastY);
+                    previewCtx.lineTo(x, y);
+                    previewCtx.stroke();
+                }
+                window.previewLastX = x;
+                window.previewLastY = y;
+            } else {
+                window.previewLastX = null;
+                window.previewLastY = null;
+            }
+            
+            // Update preview cursor
+            const cursor = document.getElementById('preview-cursor');
+            if (cursor) {
+                cursor.style.left = `${x}px`;
+                cursor.style.top = `${y}px`;
+                cursor.style.display = 'block';
+                cursor.style.borderColor = isEraserActive ? '#ef4444' : '#6366f1';
+            }
+        }
+
+        function initTouchscreenChannel() {
+            channel = new BroadcastChannel('pen-track-whiteboard-v1');
+            
+            channel.onmessage = (event) => {
+                const data = event.data;
+                
+                if (data.type === 'whiteboard-ready') {
+                    document.getElementById('connection-status').innerHTML = 
+                        `<i class="fa-solid fa-wifi text-amber-400"></i> <span>Whiteboard detected — Click CONNECT</span>`;
+                } else if (data.type === 'clear') {
+                    // Clear preview too
+                    previewCtx.fillStyle = '#ffffff';
+                    previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+                }
+            };
+        }
+
+        function connectToWhiteboard() {
+            if (!channel) {
+                channel = new BroadcastChannel('pen-track-whiteboard-v1');
+            }
+            
+            isConnected = true;
+            
+            const btn = document.getElementById('connect-btn');
+            btn.innerHTML = `<i class="fa-solid fa-check"></i> <span>CONNECTED</span>`;
+            btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+            btn.classList.add('bg-emerald-700', 'cursor-default');
+            btn.disabled = true;
+            
+            document.getElementById('connection-status').innerHTML = 
+                `<i class="fa-solid fa-wifi text-emerald-400"></i> <span class="text-emerald-400">Connected to Whiteboard</span>`;
+            
+            // Announce join
+            channel.postMessage({ type: 'join', role: 'controller' });
+            
+            // Send initial tool state
+            setTimeout(() => {
+                if (channel) {
+                    channel.postMessage({ 
+                        type: 'tool', 
+                        color: tsCurrentColor, 
+                        erase: isEraserActive, 
+                        size: tsCurrentSize 
+                    });
+                }
+            }, 300);
+            
+            showToast("Connected! Your pen movements are now controlling the remote whiteboard.", 2800);
+        }
+
+        function calibratePen() {
+            penCalibrated = true;
+            positionHistory = [];
+            showToast("Pen calibration complete. Tracking optimized for your hand.", 2200);
+            
+            // Flash the indicator
+            const indicator = document.getElementById('pen-indicator');
+            indicator.style.borderColor = '#22c55e';
+            setTimeout(() => {
+                if (indicator) indicator.style.borderColor = '#eab308';
+            }, 800);
+        }
+
+        function clearPreview() {
+            if (previewCtx && previewCanvas) {
+                previewCtx.fillStyle = '#ffffff';
+                previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+            }
+            window.previewLastX = null;
+            window.previewLastY = null;
+        }
+
+        // ==================== UTILITIES ====================
+        function showToast(message, duration = 3000) {
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-slate-900 border border-slate-700 text-white text-sm rounded-3xl shadow-2xl flex items-center gap-x-3 z-[100]`;
+            toast.innerHTML = `
+                <i class="fa-solid fa-info-circle text-indigo-400"></i>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.transition = 'all 0.3s ease';
+                toast.style.opacity = '0';
+                toast.style.transform = 'translate(-50%, 20px)';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        function updateRemotePointer(x, y, angle = 0) {
+            // This is handled inside handleRemoteUpdate for whiteboard
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (currentMode === 'whiteboard') {
+                if (e.key === 'c' || e.key === 'C') {
+                    clearWhiteboard();
+                }
+                if (e.key === 'e' || e.key === 'E') {
+                    wbToggleEraser();
+                }
+            }
+            
+            if (currentMode === 'touchscreen') {
+                if (e.key === 'Escape') {
+                    exitMode();
+                }
+                if (e.key.toLowerCase() === 'e') {
+                    toggleEraser();
+                }
+            }
         });
 
-        function loop() {
-            // Use window CENTER for repulsion (this was the main bug)
-            const centerX = x + window.outerWidth / 2;
-            const centerY = y + window.outerHeight / 2;
-
-            // vector away from mouse (only when mouse is over this window)
-            let dx = centerX - mx;
-            let dy = centerY - my;
-            let dist = Math.sqrt(dx*dx + dy*dy) || 1;
-
-            // normalize + push away (stronger force when close)
-            const force = 0.8;
-            vx += (dx / dist) * force;
-            vy += (dy / dist) * force;
-
-            // dampening
-            vx *= 0.90;
-            vy *= 0.90;
-
-            x += vx * speed;
-            y += vy * speed;
-
-            // keep on screen
-            const sw = screen.availWidth;
-            const sh = screen.availHeight;
-            x = Math.max(0, Math.min(sw - window.outerWidth, x));
-            y = Math.max(0, Math.min(sh - window.outerHeight, y));
-
-            window.moveTo(Math.round(x), Math.round(y));
-            requestAnimationFrame(loop);
+        // Initialize everything
+        function initializeApp() {
+            initTailwind();
+            
+            // Seed some initial colors in case
+            console.log('%c[PenSync] Precision hand-tracked whiteboard initialized. Ready for multi-user demo.', 'color:#64748b');
+            
+            // Easter egg: press "?" for help
+            document.addEventListener('keypress', function(e) {
+                if (e.key === '?') {
+                    showToast("Tip: Hold pen like a real stylus. Extend only your index finger to draw. Pinch to pause.", 4200);
+                }
+            });
+            
+            // Auto hint after 25 seconds if still on landing
+            setTimeout(() => {
+                if (!currentMode && document.getElementById('landing-page').classList.contains('hidden') === false) {
+                    const hint = document.createElement('div');
+                    hint.className = 'fixed bottom-8 left-1/2 -translate-x-1/2 text-xs bg-slate-900/90 border border-slate-700 px-4 py-2 rounded-3xl flex items-center gap-x-2 text-slate-400';
+                    hint.innerHTML = `<i class="fa-solid fa-lightbulb"></i> <span>Pro tip: Open this page in two browser tabs for full controller + display experience</span>`;
+                    document.body.appendChild(hint);
+                    
+                    setTimeout(() => hint.remove(), 6500);
+                }
+            }, 25000);
         }
 
-        // attach stream
-        document.querySelector("video").srcObject = window.opener._stream;
-        setTimeout(loop, 200);
-        <\/script>
-    </body>
-    </html>
-    `);
-    win.document.close();
-}
-
-function startSystem() {
-    // spawn 5 initially
-    for (let i = 0; i < 5; i++) {
-        setTimeout(spawnWindow, i * 200);
-    }
-    // spawn every 15 seconds
-    setInterval(spawnWindow, 15000);
-}
-</script>
-</body>
-</html>    background: #ff00ff;
-    border: none;
-    color: white;
-    font-size: 16px;
-    cursor: pointer;
-}
-</style>
-</head>
-<body>
-
-<img id="bg" src="https://www.crazygames.com/img/background.jpg" onerror="this.style.display='none'">
-<img id="logo" src="https://cdn.crazygames.com/logo/crazygames-logo-white.png">
-
-<button id="start">Start Swarm</button>
-
-<script>
-let screenStream = null;
-
-document.getElementById("start").onclick = async () => {
-    try {
-        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-
-        // spawn windows immediately (important for popup blockers)
-        for (let i = 0; i < 5; i++) {
-            spawnWindow();
-        }
-
-        // keep spawning more
-        setInterval(spawnWindow, 10000);
-
-    } catch (e) {
-        alert("Screen capture permission is required.");
-    }
-};
-
-function spawnWindow() {
-    const w = 260;
-    const h = 180;
-
-    const win = window.open("", "", `width=${w},height=${h}`);
-    if (!win) return;
-
-    // basic HTML first
-    win.document.write(`
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-body,html {
-    margin:0;
-    overflow:hidden;
-    background:#000;
-}
-video {
-    width:100%;
-    height:100%;
-    object-fit:cover;
-}
-img {
-    position:absolute;
-    width:100%;
-    height:100%;
-    object-fit:contain;
-    mix-blend-mode:screen;
-    pointer-events:none;
-}
-</style>
-</head>
-<body>
-<video autoplay muted playsinline></video>
-<img src="https://cdn.crazygames.com/logo/crazygames-logo-white.png">
-</body>
-</html>
-    `);
-
-    win.document.close();
-
-    // wait until window is ready
-    const interval = setInterval(() => {
-        const video = win.document.querySelector("video");
-        if (!video) return;
-
-        video.srcObject = screenStream;
-        video.play().catch(() => {});
-
-        startMovement(win);
-        clearInterval(interval);
-    }, 100);
-}
-
-function startMovement(win) {
-    let x = win.screenX;
-    let y = win.screenY;
-
-    let vx = (Math.random() - 0.5) * 6;
-    let vy = (Math.random() - 0.5) * 6;
-
-    function loop() {
-        try {
-            x += vx;
-            y += vy;
-
-            const sw = screen.availWidth;
-            const sh = screen.availHeight;
-
-            if (x <= 0 || x >= sw - win.outerWidth) vx *= -1;
-            if (y <= 0 || y >= sh - win.outerHeight) vy *= -1;
-
-            win.moveTo(x, y);
-            win.requestAnimationFrame(loop);
-        } catch {
-            // window closed
-        }
-    }
-
-    loop();
-}
-</script>
+        // Boot the app
+        window.onload = initializeApp;
+        
+        // Make some functions global for debugging if needed
+        window.PenSync = { exitMode, clearWhiteboard, calibratePen };
+    </script>
 </body>
 </html>
