@@ -2,330 +2,160 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Swarm - Fixed</title>
+    <title>Swarm - Perfect Avoidance</title>
     <style>
-        html, body { margin: 0; padding: 0; overflow: hidden; background: black; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        #bg { position: fixed; width: 100%; height: 100%; object-fit: cover; z-index: -1; }
-        #overlay {
+        :root { --neon: #ff0055; --glow: #880022; }
+        html, body { 
+            margin: 0; padding: 0; overflow: hidden; background: #000; 
+            font-family: 'Courier New', Courier, monospace; 
+            cursor: crosshair;
+        }
+        #bg { 
+            position: fixed; width: 100%; height: 100%; 
+            object-fit: cover; z-index: -1; filter: brightness(0.3);
+        }
+        #ui {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            text-align: center; color: white; background: rgba(0, 0, 0, 0.85);
-            padding: 30px; border-radius: 20px; border: 3px solid #ff00ff; box-shadow: 0 0 20px #ff00ff;
+            text-align: center; color: var(--neon);
+            padding: 50px; border: 2px solid var(--neon);
+            background: rgba(0, 0, 0, 0.8);
+            box-shadow: 0 0 30px var(--glow);
+            border-radius: 10px;
         }
+        h1 { font-size: 3rem; margin: 0; text-shadow: 0 0 15px var(--neon); text-transform: uppercase; }
+        p { color: #fff; font-size: 1.2rem; }
         button {
-            background: #ff00ff; border: none; padding: 15px 40px; color: white;
-            font-size: 22px; font-weight: bold; cursor: pointer; border-radius: 50px;
-            transition: all 0.3s;
+            background: transparent; color: var(--neon); border: 2px solid var(--neon);
+            padding: 15px 50px; font-size: 22px; font-weight: bold;
+            cursor: pointer; margin-top: 20px; transition: 0.2s;
         }
-        button:hover { background: #00ffff; color: black; transform: scale(1.05); }
+        button:hover { background: var(--neon); color: black; box-shadow: 0 0 30px var(--neon); }
     </style>
 </head>
 <body>
 
-<img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
+<img id="bg" src="https://i.redd.it/brvc63j20c751.gif" onerror="this.style.display='none'">
 
-<div id="overlay">
-    <h1>SWARM ACTIVE</h1>
-    <p>If windows don't appear, <b>Enable Popups</b> in your browser bar!</p>
-    <button id="start">LAUNCH SWARM</button>
+<div id="ui">
+    <h1>SWARM PROTOCOL</h1>
+    <p>KEEP MOUSE MOVING ON THIS SCREEN</p>
+    <button id="start">LAUNCH</button>
 </div>
 
 <script>
-const GAME_URL = "https://www.crazygames.com";
-const MAX_WINDOWS = 8; 
-let windowQueue = [];
-let mx = 0;
-let my = 0;
+const TARGET_URL = "https://www.crazygames.com";
+const MAX_WINDOWS = 5; // Kept lower for better browser performance
+const WIN_SIZE = 300;  // All windows will be exactly 300x300
 
-// Global mouse tracking
+let swarm = [];
+let mx = -9999, my = -9999;
+
+// Track mouse position globally on the main screen
 window.addEventListener('mousemove', (e) => {
     mx = e.screenX;
     my = e.screenY;
 });
 
-document.getElementById("start").onclick = function() {
-    document.getElementById("overlay").style.display = "none";
-    
-    // Launch first batch
-    for (let i = 0; i < 3; i++) {
-        setTimeout(spawnWindow, i * 400);
-    }
-
-    // Keep spawning
-    setInterval(spawnWindow, 8000);
-};
-
-function spawnWindow() {
-    // Queue management: Remove oldest
-    if (windowQueue.length >= MAX_WINDOWS) {
-        let oldest = windowQueue.shift();
-        if (oldest && !oldest.closed) oldest.close();
-    }
-
-    const w = 180; // Small size
-    const h = 140;
-    
-    // Center spawn
-    const left = (screen.width/2) - (w/2);
-    const top = (screen.height/2) - (h/2);
-
-    const win = window.open(GAME_URL, `win_${Date.now()}`, `width=${w},height=${h},left=${left},top=${top},menubar=no,status=no,location=no`);
-    
-    if (win) {
-        windowQueue.push(win);
-        animateWindow(win);
-    } else {
-        console.error("Popup blocked! Check your browser settings.");
-    }
-}
-
-function animateWindow(win) {
-    let x = screen.width / 2;
-    let y = screen.height / 2;
-    let vx = (Math.random() - 0.5) * 15;
-    let vy = (Math.random() - 0.5) * 15;
-
-    function frame() {
-        if (win.closed) return;
-
-        // Calculate distance to mouse
-        const winCX = x + (win.outerWidth / 2);
-        const winCY = y + (win.outerHeight / 2);
-        let dx = winCX - mx;
-        let dy = winCY - my;
-        let dist = Math.sqrt(dx*dx + dy*dy) || 1;
-
-        // "Flee" logic: if mouse is within 400px
-        if (dist < 400) {
-            let force = (400 - dist) / 400;
-            vx += (dx / dist) * force * 5; 
-            vy += (dy / dist) * force * 5;
-        }
-
-        // Friction to keep it controlled
-        vx *= 0.97;
-        vy *= 0.97;
-
-        x += vx;
-        y += vy;
-
-        // Bounce off screen edges
-        const pad = 10;
-        if (x <= pad || x >= screen.availWidth - win.outerWidth - pad) vx *= -1.1;
-        if (y <= pad || y >= screen.availHeight - win.outerHeight - pad) vy *= -1.1;
-
-        // Keep inside bounds
-        x = Math.max(pad, Math.min(screen.availWidth - win.outerWidth - pad, x));
-        y = Math.max(pad, Math.min(screen.availHeight - win.outerHeight - pad, y));
-
-        try {
-            win.moveTo(x, y);
-        } catch (e) { return; }
-
-        requestAnimationFrame(frame);
-    }
-    
-    // Small delay to ensure window is fully initialized before moving
-    setTimeout(frame, 300);
-}
-</script>
-</body>
-</html>            color: white;
-            font-size: 18px;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-    </style>
-</head>
-<body>
-
-<img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
-
-<div id="overlay">
-    <h2>Crazy Swarm</h2>
-    <p>Windows will now avoid your mouse.</p>
-    <button id="start">Start Swarm</button>
-</div>
-
-<script>
-const GAME_URL = "https://www.crazygames.com";
-const MAX_WINDOWS = 10; // Limits the number of open windows
-let windowQueue = [];
-let mouseX = 0;
-let mouseY = 0;
-
-// Track mouse position on the main page
-window.addEventListener('mousemove', (e) => {
-    mouseX = e.screenX;
-    mouseY = e.screenY;
+// Hide mouse coordinates if we leave the main window so they don't get stuck
+window.addEventListener('mouseout', () => {
+    mx = -9999;
+    my = -9999;
 });
 
-document.getElementById("start").onclick = () => {
-    document.getElementById("overlay").style.display = "none";
+document.getElementById("start").onclick = function() {
+    this.parentElement.style.display = "none";
     
-    // Initial burst
-    for (let i = 0; i < 5; i++) {
-        setTimeout(spawnWindow, i * 200);
-    }
-
-    // Continuous spawn
-    setInterval(spawnWindow, 5000);
+    // Spawn initial windows
+    for(let i=0; i<3; i++) setTimeout(spawn, i * 300);
+    setInterval(spawn, 8000);
+    
+    // Start physics engine
+    requestAnimationFrame(updatePhysics);
 };
 
-function spawnWindow() {
-    // Remove oldest if we hit the limit
-    if (windowQueue.length >= MAX_WINDOWS) {
-        let oldest = windowQueue.shift();
-        if (oldest && !oldest.closed) oldest.close();
+function spawn() {
+    // Clear oldest to prevent lagging out the system
+    if (swarm.length >= MAX_WINDOWS) {
+        let oldest = swarm.shift();
+        try { if (oldest.ref && !oldest.ref.closed) oldest.ref.close(); } catch(e) {}
     }
 
-    const w = 200; // Smaller width
-    const h = 150; // Smaller height
+    const startX = Math.random() * (screen.availWidth - WIN_SIZE);
+    const startY = Math.random() * (screen.availHeight - WIN_SIZE);
 
-    const win = window.open(GAME_URL, "_blank", `width=${w},height=${h},menubar=no,status=no`);
+    const winRef = window.open(TARGET_URL, `win_${Date.now()}`, `width=${WIN_SIZE},height=${WIN_SIZE},left=${startX},top=${startY},menubar=no,toolbar=no,location=no,status=no`);
     
-    if (win) {
-        windowQueue.push(win);
-        startAdvancedMovement(win);
+    if (winRef) {
+        swarm.push({
+            ref: winRef,
+            x: startX,
+            y: startY,
+            vx: (Math.random() - 0.5) * 30, // Higher initial speed
+            vy: (Math.random() - 0.5) * 30
+        });
+    } else {
+        console.warn("Popup blocked!");
     }
 }
 
-function startAdvancedMovement(win) {
-    let x = Math.random() * (screen.availWidth - 200);
-    let y = Math.random() * (screen.availHeight - 150);
-    let vx = (Math.random() - 0.5) * 4;
-    let vy = (Math.random() - 0.5) * 4;
+function updatePhysics() {
+    swarm.forEach((p, index) => {
+        // Safely check if window was closed by the user
+        try {
+            if (p.ref.closed) {
+                swarm.splice(index, 1);
+                return;
+            }
+        } catch(e) {}
 
-    function loop() {
-        if (win.closed) return;
+        // Calculate center of the specific popup
+        const cx = p.x + (WIN_SIZE / 2);
+        const cy = p.y + (WIN_SIZE / 2);
 
-        // --- Mouse Avoiding Logic ---
-        const winCenterX = x + (win.outerWidth / 2);
-        const winCenterY = y + (win.outerHeight / 2);
-        
-        let dx = winCenterX - mouseX;
-        let dy = winCenterY - mouseY;
-        let distance = Math.sqrt(dx * dx + dy * dy);
+        // Calculate distance to mouse
+        const dx = cx - mx;
+        const dy = cy - my;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
 
-        // If mouse is within 300 pixels, push away
-        if (distance < 300) {
-            let force = (300 - distance) / 300;
-            vx += (dx / distance) * force * 2;
-            vy += (dy / distance) * force * 2;
+        // AGGRESSIVE FLEE LOGIC
+        // If mouse is within 600 pixels (massive radius), push away instantly
+        if (dist < 600) {
+            const power = (600 - dist) / 600;
+            p.vx += (dx / dist) * power * 40; // Extremely strong push
+            p.vy += (dy / dist) * power * 40;
         }
 
-        // Friction/Damping (prevents infinite acceleration)
-        vx *= 0.98;
-        vy *= 0.98;
+        // Apply friction so they eventually stop if left alone
+        p.vx *= 0.90;
+        p.vy *= 0.90;
 
-        x += vx;
-        y += vy;
+        // Hard speed cap so they don't break the physics engine
+        const speed = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+        if (speed > 60) {
+            p.vx = (p.vx / speed) * 60;
+            p.vy = (p.vy / speed) * 60;
+        }
 
-        // Screen Boundaries
+        // Apply velocity to position
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Screen boundaries (perfect bounce)
         const sw = screen.availWidth;
         const sh = screen.availHeight;
 
-        if (x <= 0) { x = 0; vx *= -1; }
-        if (x >= sw - win.outerWidth) { x = sw - win.outerWidth; vx *= -1; }
-        if (y <= 0) { y = 0; vy *= -1; }
-        if (y >= sh - win.outerHeight) { y = sh - win.outerHeight; vy *= -1; }
+        if (p.x <= 0) { p.x = 0; p.vx *= -1.5; } // Bounces back harder when hitting walls
+        if (p.x >= sw - WIN_SIZE) { p.x = sw - WIN_SIZE; p.vx *= -1.5; }
+        if (p.y <= 0) { p.y = 0; p.vy *= -1.5; }
+        if (p.y >= sh - WIN_SIZE) { p.y = sh - WIN_SIZE; p.vy *= -1.5; }
 
+        // Move the window
         try {
-            win.moveTo(x, y);
-        } catch (e) {
-            return; // Exit loop if window access is lost
-        }
+            p.ref.moveTo(Math.round(p.x), Math.round(p.y));
+        } catch(e) {}
+    });
 
-        requestAnimationFrame(loop);
-    }
-
-    setTimeout(loop, 200);
-}
-</script>
-</body>
-</html>            color: white;
-            font-size: 20px;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 5px;
-            transition: transform 0.2s;
-        }
-        button:hover {
-            transform: scale(1.1);
-        }
-    </style>
-</head>
-<body>
-
-<img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
-
-<div id="overlay">
-    <h1>CrazyGames Swarm</h1>
-    <p>Allow popups to see the swarm!</p>
-    <button id="start">Launch Swarm</button>
-</div>
-
-<script>
-const GAME_URL = "https://www.crazygames.com";
-
-document.getElementById("start").onclick = () => {
-    // Hide the UI after clicking
-    document.getElementById("overlay").style.display = "none";
-
-    // Spawn 5 initially
-    for (let i = 0; i < 5; i++) {
-        setTimeout(spawnWindow, i * 300);
-    }
-
-    // Spawn more every 10 seconds
-    setInterval(spawnWindow, 10000);
-};
-
-function spawnWindow() {
-    const w = 400; // Increased size slightly to see the site better
-    const h = 300;
-
-    // We open the URL directly instead of a blank window
-    const win = window.open(GAME_URL, "_blank", `width=${w},height=${h}`);
-    
-    if (!win) {
-        console.warn("Popup blocked! Please allow popups for this site.");
-        return;
-    }
-
-    startMovement(win);
-}
-
-function startMovement(win) {
-    let x = Math.random() * (screen.availWidth - 400);
-    let y = Math.random() * (screen.availHeight - 300);
-
-    // Random velocity
-    let vx = (Math.random() - 0.5) * 10;
-    let vy = (Math.random() - 0.5) * 10;
-
-    function loop() {
-        try {
-            if (win.closed) return;
-
-            x += vx;
-            y += vy;
-
-            const sw = screen.availWidth;
-            const sh = screen.availHeight;
-
-            // Bounce logic
-            if (x <= 0 || x >= sw - win.outerWidth) vx *= -1;
-            if (y <= 0 || y >= sh - win.outerHeight) vy *= -1;
-
-            win.moveTo(x, y);
-            requestAnimationFrame(loop);
-        } catch (e) {
-            // This handles cases where the window is closed or focus is lost
-        }
-    }
-
-    // Small delay to let the window initialize
-    setTimeout(loop, 500);
+    requestAnimationFrame(updatePhysics);
 }
 </script>
 </body>
