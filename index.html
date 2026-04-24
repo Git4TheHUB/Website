@@ -3,502 +3,535 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PenSync • Precision Hand-Tracked Whiteboard</title>
+    <title>PenSync 95 • Retro Hand & Pen Tracking</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=VT323&amp;display=swap');
         
         :root {
-            --primary: #6366f1;
+            --win95-bg: #c0c0c0;
+            --win95-title: #000080;
+            --crt-green: #00ff41;
         }
         
         body {
-            font-family: 'Inter', system_ui, sans-serif;
+            font-family: "MS Sans Serif", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            image-rendering: pixelated;
         }
         
-        .font-display {
-            font-family: 'Space Grotesk', 'Inter', sans-serif;
-            font-weight: 600;
+        .retro-font {
+            font-family: "VT323", "Courier New", monospace;
+            font-size: 18px;
+            line-height: 1.1;
         }
-
-        .glass {
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(20px);
+        
+        .win95-window {
+            background: #c0c0c0;
+            border: 2px solid #fff;
+            border-right-color: #808080;
+            border-bottom-color: #808080;
+            box-shadow: 2px 2px 0 #000;
         }
-
-        .dark-glass {
-            background: rgba(15, 23, 42, 0.95);
-            backdrop-filter: blur(20px);
+        
+        .win95-titlebar {
+            background: linear-gradient(#000080, #000040);
+            color: white;
+            font-weight: bold;
+            padding: 2px 4px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
         }
-
-        .section-header {
-            font-size: 2.25rem;
-            line-height: 2.5rem;
-            font-weight: 700;
-            letter-spacing: -0.025em;
+        
+        .win95-button {
+            background: #c0c0c0;
+            border: 2px solid #fff;
+            border-right-color: #808080;
+            border-bottom-color: #808080;
+            box-shadow: 1px 1px 0 #000;
+            font-weight: bold;
+            padding: 4px 12px;
+            cursor: pointer;
+            transition: all 0.05s;
         }
-
-        .pen-cursor {
-            position: absolute;
-            width: 24px;
-            height: 24px;
-            pointer-events: none;
-            z-index: 50;
-            transition: transform 0.05s ease;
+        
+        .win95-button:active {
+            border: 2px solid #808080;
+            border-right-color: #fff;
+            border-bottom-color: #fff;
+            box-shadow: none;
+            transform: translate(1px, 1px);
         }
-
-        .metric-value {
-            font-family: 'Space Grotesk', monospace;
-            font-weight: 600;
+        
+        .win95-button.primary {
+            background: #000080;
+            color: white;
+            border-color: #fff #000 #000 #fff;
         }
-
-        .whiteboard-canvas {
-            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
-            border: 1px solid #e2e8f0;
+        
+        .crt {
+            position: relative;
+            background: #0a0a0a;
+            overflow: hidden;
         }
-
-        .landmark {
-            transition: all 0.1s ease;
-        }
-
-        .tool-btn {
-            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .tool-btn.active {
-            transform: scale(1.05);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
-        }
-
-        .remote-pointer {
-            position: absolute;
-            width: 28px;
-            height: 28px;
-            border: 3px solid #ef4444;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 40;
-            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
-            transition: left 0.03s linear, top 0.03s linear;
-        }
-
-        .remote-pointer::after {
+        
+        .crt::before {
             content: '';
             position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 8px;
-            height: 3px;
-            background: #ef4444;
-            transform-origin: left center;
-            border-radius: 2px;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(
+                rgba(0, 255, 65, 0.06) 50%,
+                transparent 50%
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 2;
+            animation: scanline 4s linear infinite;
         }
-
-        .status-dot {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        
+        .crt::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(
+                circle at center,
+                transparent 60%,
+                rgba(0, 0, 0, 0.4) 90%
+            );
+            pointer-events: none;
+            z-index: 1;
         }
-
-        .hand-overlay {
-            mix-blend-mode: difference;
+        
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
         }
-
-        canvas {
+        
+        .retro-text {
+            color: #00ff41;
+            text-shadow: 0 0 5px #00ff41;
+            font-family: "VT323", monospace;
+        }
+        
+        .pixel-border {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+        }
+        
+        .old-monitor {
+            background: #1a1a1a;
+            border: 12px solid #444;
+            border-radius: 8px;
+            box-shadow: 
+                0 0 0 8px #222,
+                0 0 40px rgba(0, 255, 65, 0.3),
+                inset 0 0 80px rgba(0, 0, 0, 0.8);
+        }
+        
+        .metric-box {
+            background: #0a0a0a;
+            border: 2px solid #00aa00;
+            color: #00ff41;
+            font-family: "VT323", monospace;
+        }
+        
+        .pen-tip-glow {
+            box-shadow: 0 0 12px #ffff00,
+                        0 0 24px #ffaa00;
+            animation: pen-pulse 1.5s ease-in-out infinite;
+        }
+        
+        .win95-status {
+            background: #000080;
+            color: #fff;
+            font-size: 13px;
+            padding: 1px 6px;
+        }
+        
+        .retro-canvas {
             image-rendering: crisp-edges;
+            border: 4px solid #000;
+            box-shadow: 6px 6px 0 #000;
+        }
+        
+        .landmark-dot {
+            filter: drop-shadow(0 0 3px #ff0);
         }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-200">
-    <!-- LANDING PAGE -->
-    <div id="landing-page" class="min-h-screen flex items-center justify-center p-6">
-        <div class="max-w-5xl w-full">
-            <!-- Hero -->
-            <div class="text-center mb-12">
-                <div class="inline-flex items-center gap-x-3 mb-6">
-                    <div class="w-16 h-16 bg-indigo-600 rounded-3xl flex items-center justify-center shadow-xl shadow-indigo-500/30">
-                        <i class="fa-solid fa-pen-nib text-white text-4xl"></i>
+<body class="bg-[#a0a0a0] text-black overflow-hidden">
+    <!-- LANDING PAGE - Retro Windows 95 Style -->
+    <div id="landing-page" class="min-h-screen flex items-center justify-center p-8" style="background: linear-gradient(#a0a0a0, #808080);">
+        <div class="max-w-4xl w-full">
+            <!-- Main Window -->
+            <div class="win95-window mx-auto max-w-[820px] shadow-[8px_8px_0_#000]">
+                <!-- Title Bar -->
+                <div class="win95-titlebar px-2 py-1">
+                    <div class="flex items-center gap-x-2">
+                        <div class="w-5 h-5 bg-[#00aa00] flex items-center justify-center">
+                            <i class="fa-solid fa-pen-nib text-black text-sm"></i>
+                        </div>
+                        <span class="font-bold text-sm tracking-widest">PENSYNC 95 - VERSION 1.0</span>
                     </div>
-                    <div>
-                        <h1 class="font-display text-7xl font-bold tracking-tighter">PenSync</h1>
-                        <p class="text-indigo-400 text-xl -mt-2 font-medium">Precision Tracking</p>
+                    <div class="flex gap-x-1">
+                        <div class="w-4 h-4 bg-[#c0c0c0] border border-black flex items-center justify-center text-[10px] leading-none">_</div>
+                        <div class="w-4 h-4 bg-[#c0c0c0] border border-black flex items-center justify-center text-[10px] leading-none">□</div>
+                        <div class="w-4 h-4 bg-[#c0c0c0] border border-black flex items-center justify-center text-[10px] leading-none">×</div>
                     </div>
                 </div>
                 
-                <p class="max-w-2xl mx-auto text-2xl text-slate-300 font-light">
-                    The most accurate browser-based pen tracking system.<br>
-                    Control a shared digital whiteboard using only your pen tip.
-                </p>
-            </div>
-
-            <!-- Features -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                <div class="glass rounded-3xl p-8 border border-slate-200 shadow-xl">
-                    <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-5">
-                        <i class="fa-solid fa-crosshairs text-2xl"></i>
-                    </div>
-                    <h3 class="font-semibold text-xl mb-2">Sub-millimeter Accuracy</h3>
-                    <p class="text-slate-600">MediaPipe hand tracking + Kalman smoothing for ultra-precise pen tip detection (position, depth, angle).</p>
-                </div>
-                
-                <div class="glass rounded-3xl p-8 border border-slate-200 shadow-xl">
-                    <div class="w-12 h-12 bg-violet-100 text-violet-600 rounded-2xl flex items-center justify-center mb-5">
-                        <i class="fa-solid fa-users text-2xl"></i>
-                    </div>
-                    <h3 class="font-semibold text-xl mb-2">Real-time Collaboration</h3>
-                    <p class="text-slate-600">One device acts as precision touchscreen controller. Another as large-screen whiteboard. Instant sync via BroadcastChannel.</p>
-                </div>
-                
-                <div class="glass rounded-3xl p-8 border border-slate-200 shadow-xl">
-                    <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mb-5">
-                        <i class="fa-solid fa-magic text-2xl"></i>
-                    </div>
-                    <h3 class="font-semibold text-xl mb-2">Pen-Aware Intelligence</h3>
-                    <p class="text-slate-600">Detects only the pointy tip of your pen. Ignores palm and other fingers. Supports tilt angle and pressure simulation.</p>
-                </div>
-            </div>
-
-            <!-- Mode Selection -->
-            <div class="max-w-md mx-auto">
-                <div class="text-center mb-6">
-                    <p class="uppercase tracking-[2px] text-xs font-semibold text-slate-400">CHOOSE YOUR ROLE</p>
-                </div>
-                
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <!-- Touchscreen Button -->
-                    <button onclick="enterTouchscreenMode()"
-                            class="group relative overflow-hidden bg-white hover:bg-slate-50 border border-slate-300 hover:border-indigo-300 transition-all rounded-3xl p-8 text-left shadow-xl active:scale-[0.985]">
-                        <div class="flex items-start gap-x-4">
-                            <div class="w-14 h-14 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-inner">
-                                <i class="fa-solid fa-hand-point-up text-white text-3xl group-active:scale-90 transition-transform"></i>
+                <div class="p-6 bg-[#c0c0c0]">
+                    <div class="text-center mb-8">
+                        <div class="inline-flex items-center gap-x-3 mb-4">
+                            <div class="w-20 h-20 bg-[#000080] border-4 border-white flex items-center justify-center">
+                                <i class="fa-solid fa-hand-point-up text-[#00ff41] text-5xl"></i>
                             </div>
                             <div>
-                                <div class="font-semibold text-2xl text-slate-900">Touchscreen</div>
-                                <div class="text-slate-600 mt-1 text-[15px]">Use webcam + pen to control the whiteboard remotely. High-precision tip tracking.</div>
-                                <div class="mt-4 inline-flex items-center text-xs font-medium text-indigo-600">
-                                    <span>Requires camera</span>
-                                    <i class="fa-solid fa-arrow-right ml-2 group-hover:translate-x-1 transition"></i>
-                                </div>
+                                <h1 class="text-6xl font-bold tracking-[3px] text-[#000080]" style="font-family: 'VT323', monospace;">PENSYNC 95</h1>
+                                <p class="text-[#000080] text-xl -mt-2">HAND &amp; PEN TRACKING SYSTEM</p>
                             </div>
                         </div>
-                    </button>
-
-                    <!-- Whiteboard Button -->
-                    <button onclick="enterWhiteboardMode()"
-                            class="group relative overflow-hidden bg-white hover:bg-slate-50 border border-slate-300 hover:border-emerald-300 transition-all rounded-3xl p-8 text-left shadow-xl active:scale-[0.985]">
-                        <div class="flex items-start gap-x-4">
-                            <div class="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-inner">
-                                <i class="fa-solid fa-chalkboard text-white text-3xl group-active:scale-90 transition-transform"></i>
-                            </div>
-                            <div>
-                                <div class="font-semibold text-2xl text-slate-900">Whiteboard</div>
-                                <div class="text-slate-600 mt-1 text-[15px]">Large display mode. Receives live input from a connected touchscreen controller.</div>
-                                <div class="mt-4 inline-flex items-center text-xs font-medium text-emerald-600">
-                                    <span>Display + local draw</span>
-                                    <i class="fa-solid fa-arrow-right ml-2 group-hover:translate-x-1 transition"></i>
+                        
+                        <div class="max-w-md mx-auto">
+                            <p class="text-sm text-[#333] leading-tight">
+                                THE MOST ADVANCED 1995-ERA PEN TIP TRACKING TECHNOLOGY.<br>
+                                DETECTS HAND BY DEFAULT. SWITCHES TO PEN/PENCIL TIP AUTOMATICALLY.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Mode Buttons - Big Retro Style -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Touchscreen -->
+                        <button onclick="enterTouchscreenMode()"
+                                class="win95-button group text-left p-5 border-4 border-black hover:bg-[#d0d0d0] active:translate-x-[2px] active:translate-y-[2px]">
+                            <div class="flex items-start gap-x-4">
+                                <div class="w-16 h-16 bg-[#000080] border-4 border-white flex-shrink-0 flex items-center justify-center">
+                                    <i class="fa-solid fa-hand-point-up text-[#00ff41] text-4xl group-active:scale-90 transition"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="font-bold text-2xl text-[#000080]">TOUCHSCREEN</div>
+                                    <div class="text-xs text-[#333] mt-1 leading-tight">FULL SCREEN CAMERA MODE<br>TRACKS PEN TIP OR INDEX FINGER<br>POINT TO DRAW ON WHITEBOARD</div>
+                                    <div class="mt-3 text-[10px] text-[#006600] font-bold">► REQUIRES WEBCAM</div>
                                 </div>
                             </div>
+                        </button>
+                        
+                        <!-- Whiteboard -->
+                        <button onclick="enterWhiteboardMode()"
+                                class="win95-button group text-left p-5 border-4 border-black hover:bg-[#d0d0d0] active:translate-x-[2px] active:translate-y-[2px]">
+                            <div class="flex items-start gap-x-4">
+                                <div class="w-16 h-16 bg-[#006600] border-4 border-white flex-shrink-0 flex items-center justify-center">
+                                    <i class="fa-solid fa-chalkboard text-white text-4xl group-active:scale-90 transition"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="font-bold text-2xl text-[#000080]">WHITEBOARD</div>
+                                    <div class="text-xs text-[#333] mt-1 leading-tight">LARGE DISPLAY MODE<br>RECEIVES LIVE INPUT FROM<br>TOUCHSCREEN CONTROLLER</div>
+                                    <div class="mt-3 text-[10px] text-[#006600] font-bold">► OPEN IN SECOND TAB</div>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                    
+                    <div class="mt-6 text-center">
+                        <div class="inline-block px-4 py-1 bg-[#ffff00] border-2 border-black text-xs font-bold text-black">
+                            OPEN THIS PAGE IN TWO TABS FOR MULTI-USER MODE
                         </div>
-                    </button>
+                    </div>
                 </div>
                 
-                <div class="text-center mt-8 text-xs text-slate-500">
-                    <i class="fa-solid fa-info-circle mr-1.5"></i>
-                    Open this page in <span class="font-medium">two tabs</span> (one of each mode) for full multi-user experience
+                <div class="win95-status flex items-center justify-between px-3 text-[10px]">
+                    <div>© 1995 PENSOFT CORPORATION • ALL RIGHTS RESERVED</div>
+                    <div class="flex items-center gap-x-1">
+                        <div class="w-2 h-2 bg-[#00ff00] animate-pulse"></div>
+                        <span>READY</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- TOUCHSCREEN MODE -->
-    <div id="touchscreen-mode" class="hidden min-h-screen bg-slate-900">
-        <div class="flex h-screen">
-            <!-- Left: Camera + Tracking -->
-            <div class="w-5/12 border-r border-slate-800 flex flex-col">
-                <!-- Header -->
-                <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
-                    <div class="flex items-center gap-x-3">
-                        <div class="w-9 h-9 bg-indigo-600 rounded-2xl flex items-center justify-center">
-                            <i class="fa-solid fa-hand-point-up text-white"></i>
-                        </div>
-                        <div>
-                            <div class="font-semibold text-xl">Touchscreen Controller</div>
-                            <div id="ts-status" class="text-xs text-emerald-400 flex items-center gap-x-1">
-                                <i class="fa-solid fa-circle text-[8px]"></i> 
-                                <span>Ready — Point pen at camera</span>
-                            </div>
-                        </div>
+    <!-- TOUCHSCREEN MODE - FULL IMMERSIVE RETRO CRT -->
+    <div id="touchscreen-mode" class="hidden fixed inset-0 bg-[#0a0a0a] z-50 flex flex-col">
+        <!-- Top Title Bar -->
+        <div class="win95-titlebar px-3 py-1 text-sm flex-shrink-0">
+            <div class="flex items-center justify-between w-full">
+                <div class="flex items-center gap-x-3">
+                    <div class="flex items-center gap-x-2">
+                        <i class="fa-solid fa-hand-point-up text-[#00ff41]"></i>
+                        <span class="font-bold tracking-widest">PENSYNC 95 - TOUCHSCREEN CONTROLLER</span>
                     </div>
-                    <button onclick="exitMode()" 
-                            class="px-4 py-2 text-sm rounded-2xl border border-slate-700 hover:bg-slate-800 flex items-center gap-x-2 text-slate-400 hover:text-white transition-colors">
-                        <i class="fa-solid fa-times"></i>
-                        <span>Exit</span>
-                    </button>
+                    <div id="ts-mode-badge" 
+                         class="px-2 py-0.5 text-[10px] font-bold bg-[#ffff00] text-black border border-black">HAND MODE</div>
                 </div>
-
-                <!-- Camera Feed -->
-                <div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden" id="camera-container">
-                    <video id="webcam" class="max-w-full max-h-full object-contain" style="transform: scaleX(-1);" autoplay playsinline></video>
-                    <canvas id="overlay-canvas" class="absolute top-0 left-0 max-w-full max-h-full pointer-events-none" style="transform: scaleX(-1);"></canvas>
+                <div class="flex items-center gap-x-2 text-xs">
+                    <button onclick="exitMode()" class="win95-button text-xs px-3 py-0.5">EXIT</button>
+                    <button onclick="toggleFullscreen()" class="win95-button text-xs px-3 py-0.5">FULLSCREEN</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex flex-1 overflow-hidden">
+            <!-- LEFT: FULL CAMERA + TRACKING (Takes most of the screen) -->
+            <div class="flex-1 relative flex flex-col bg-black border-r-4 border-[#333]">
+                <!-- CRT Monitor Frame -->
+                <div class="crt flex-1 relative old-monitor m-4" id="camera-container">
+                    <video id="webcam" class="w-full h-full object-contain" style="transform: scaleX(-1);" autoplay playsinline></video>
+                    <canvas id="overlay-canvas" class="absolute inset-0 w-full h-full pointer-events-none" style="transform: scaleX(-1);"></canvas>
                     
-                    <!-- Tracking Info Overlay -->
-                    <div class="absolute top-4 left-4 bg-black/70 backdrop-blur-md text-white text-xs px-3 py-2 rounded-2xl font-mono border border-white/20">
+                    <!-- Retro HUD Overlays -->
+                    <div class="absolute top-4 left-4 bg-black/80 border border-[#00ff41] px-3 py-1 text-[#00ff41] text-xs font-mono">
                         <div class="flex items-center gap-x-2">
-                            <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-                            <span id="tracking-status">SCANNING FOR PEN...</span>
+                            <div class="w-2 h-2 bg-[#00ff41] animate-pulse"></div>
+                            <span id="tracking-status">SCANNING FOR PEN OR HAND...</span>
                         </div>
                     </div>
                     
                     <!-- Pen Tip Indicator -->
-                    <div id="pen-indicator" class="hidden absolute w-5 h-5 border-2 border-yellow-400 rounded-full pointer-events-none"
-                         style="box-shadow: 0 0 12px rgb(250 204 21);">
-                        <div class="absolute -top-1 -left-1 w-7 h-7 border border-yellow-400/50 rounded-full"></div>
-                    </div>
-                </div>
-
-                <!-- Metrics Panel -->
-                <div class="p-5 bg-slate-950 border-t border-slate-800">
-                    <div class="grid grid-cols-3 gap-3 text-xs">
-                        <div class="bg-slate-900 rounded-2xl p-3 border border-slate-800">
-                            <div class="text-slate-400 mb-1">PEN TIP POSITION</div>
-                            <div id="metric-pos" class="metric-value text-lg font-semibold text-white">—</div>
-                        </div>
-                        <div class="bg-slate-900 rounded-2xl p-3 border border-slate-800">
-                            <div class="text-slate-400 mb-1">DEPTH / DISTANCE</div>
-                            <div id="metric-depth" class="metric-value text-lg font-semibold text-white">—</div>
-                        </div>
-                        <div class="bg-slate-900 rounded-2xl p-3 border border-slate-800">
-                            <div class="text-slate-400 mb-1">TILT ANGLE</div>
-                            <div id="metric-angle" class="metric-value text-lg font-semibold text-white">—</div>
-                        </div>
+                    <div id="pen-indicator" class="hidden absolute w-6 h-6 border-[3px] border-[#ffff00] rounded-full pointer-events-none pen-tip-glow"
+                         style="box-shadow: 0 0 15px #ffff00;">
+                        <div class="absolute inset-0 border border-[#ffff00]/50 rounded-full"></div>
                     </div>
                     
-                    <div class="mt-3 flex items-center justify-between text-xs">
-                        <div class="flex items-center gap-x-2">
-                            <div class="px-2.5 py-1 bg-slate-900 rounded-xl border border-slate-700 text-emerald-400 text-[10px] font-medium">INDEX FINGER TIP</div>
-                            <div id="confidence" class="px-2.5 py-1 bg-slate-900 rounded-xl border border-slate-700 text-[10px]">CONF: 94%</div>
-                        </div>
-                        <div onclick="calibratePen()" class="cursor-pointer flex items-center gap-x-1 text-indigo-400 hover:text-indigo-300 text-xs">
-                            <i class="fa-solid fa-sync-alt text-xs"></i>
-                            <span>CALIBRATE</span>
-                        </div>
+                    <!-- Retro Crosshair -->
+                    <div class="absolute top-1/2 left-1/2 w-8 h-8 border border-[#00ff41] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                         style="box-shadow: 0 0 8px #00ff41;">
+                        <div class="absolute top-1/2 left-0 w-full h-px bg-[#00ff41]"></div>
+                        <div class="absolute left-1/2 top-0 h-full w-px bg-[#00ff41]"></div>
+                    </div>
+                </div>
+                
+                <!-- Bottom Status Bar -->
+                <div class="h-9 bg-[#1a1a1a] border-t-2 border-[#00aa00] flex items-center px-4 text-[#00ff41] text-xs font-mono">
+                    <div class="flex-1 flex items-center gap-x-4">
+                        <span id="ts-status-text">POINTING MODE ACTIVE • INDEX FINGER EXTENDED</span>
+                    </div>
+                    <div class="flex items-center gap-x-3 text-[10px]">
+                        <span>60 FPS</span>
+                        <span class="px-2 py-px bg-[#003300]">v1.0.95</span>
                     </div>
                 </div>
             </div>
-
-            <!-- Right: Controls + Preview -->
-            <div class="w-7/12 flex flex-col">
-                <!-- Toolbar -->
-                <div class="px-6 py-4 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
-                    <div class="flex items-center gap-x-2">
-                        <div class="text-sm font-medium px-3 py-1.5 bg-slate-900 rounded-2xl border border-slate-700">PEN CONTROLS</div>
-                        
-                        <!-- Color Palette -->
-                        <div class="flex items-center gap-x-1 ml-3" id="color-palette">
-                            <!-- Populated by JS -->
+            
+            <!-- RIGHT: RETRO CONTROL PANEL (Compact) -->
+            <div class="w-80 bg-[#c0c0c0] border-l-4 border-[#808080] flex flex-col">
+                <!-- Metrics Window -->
+                <div class="win95-window m-3 flex-shrink-0">
+                    <div class="win95-titlebar px-2 py-px text-xs">
+                        <span>PEN / HAND METRICS</span>
+                    </div>
+                    <div class="p-3 text-xs space-y-2 font-mono">
+                        <div class="flex justify-between">
+                            <span class="text-[#333]">POSITION:</span>
+                            <span id="metric-pos" class="text-[#006600] font-bold">X: --- Y: ---</span>
                         </div>
-                        
-                        <div class="h-6 w-px bg-slate-700 mx-2"></div>
-                        
-                        <button id="eraser-btn"
-                                onclick="toggleEraser()"
-                                class="tool-btn flex items-center gap-x-2 px-4 py-2 text-sm rounded-2xl border border-slate-700 hover:bg-slate-800 active:bg-red-900/30">
-                            <i class="fa-solid fa-eraser"></i>
-                            <span id="eraser-text">Eraser</span>
-                        </button>
-                        
-                        <div class="flex items-center gap-x-2 ml-2">
-                            <span class="text-xs text-slate-400">SIZE</span>
-                            <input type="range" id="brush-size" min="2" max="30" step="1" value="6" 
-                                   class="w-24 accent-indigo-500" oninput="updateBrushSize()">
-                            <span id="size-value" class="font-mono text-xs w-6 text-center">6</span>
+                        <div class="flex justify-between">
+                            <span class="text-[#333]">DISTANCE:</span>
+                            <span id="metric-depth" class="text-[#006600] font-bold">---</span>
                         </div>
+                        <div class="flex justify-between">
+                            <span class="text-[#333]">TILT ANGLE:</span>
+                            <span id="metric-angle" class="text-[#006600] font-bold">---°</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-[#333]">CONFIDENCE:</span>
+                            <span id="confidence" class="text-[#006600] font-bold">---%</span>
+                        </div>
+                        <div id="pen-status" class="text-center py-1 text-[10px] font-bold bg-[#ffff00] text-black hidden">
+                            PEN DETECTED — USING TIP
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tool Panel -->
+                <div class="win95-window mx-3 flex-1 flex flex-col">
+                    <div class="win95-titlebar px-2 py-px text-xs">
+                        <span>DRAWING TOOLS</span>
                     </div>
                     
-                    <div class="flex items-center gap-x-3">
-                        <button onclick="connectToWhiteboard()" id="connect-btn"
-                                class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 transition-colors text-sm font-semibold rounded-2xl flex items-center gap-x-2">
-                            <i class="fa-solid fa-link"></i>
-                            <span>CONNECT TO WHITEBOARD</span>
-                        </button>
-                        
-                        <button onclick="clearPreview()" 
-                                class="px-4 py-2 text-sm rounded-2xl border border-slate-700 hover:bg-slate-800 flex items-center gap-x-2">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Preview Canvas -->
-                <div class="flex-1 relative p-6 bg-slate-900 flex items-center justify-center overflow-hidden">
-                    <div class="relative">
-                        <div class="text-xs absolute -top-5 left-0 text-slate-400 font-medium flex items-center gap-x-2">
-                            <i class="fa-solid fa-desktop"></i> 
-                            <span>WHITEBOARD PREVIEW (LIVE)</span>
+                    <div class="p-3 flex-1 flex flex-col">
+                        <!-- Colors -->
+                        <div class="mb-3">
+                            <div class="text-xs text-[#333] mb-1">COLORS</div>
+                            <div class="grid grid-cols-6 gap-1" id="color-palette">
+                                <!-- Populated by JS -->
+                            </div>
                         </div>
                         
-                        <canvas id="preview-canvas" width="1000" height="700" 
-                                class="rounded-3xl border border-slate-700 shadow-2xl bg-white cursor-crosshair"></canvas>
-                        
-                        <!-- Remote cursor indicator on preview -->
-                        <div id="preview-cursor" class="hidden absolute w-4 h-4 border-2 border-red-500 rounded-full pointer-events-none"
-                             style="box-shadow: 0 0 8px rgb(239 68 68 / 0.6); transform: translate(-50%, -50%);">
+                        <!-- Controls -->
+                        <div class="space-y-3 flex-1">
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-xs text-[#333]">BRUSH SIZE</span>
+                                    <span id="size-value" class="font-mono text-xs bg-black text-[#00ff41] px-1">8</span>
+                                </div>
+                                <input type="range" id="brush-size" min="3" max="28" step="1" value="8" 
+                                       class="w-full accent-[#000080]" oninput="updateBrushSize()">
+                            </div>
+                            
+                            <div class="flex gap-x-2">
+                                <button id="eraser-btn" onclick="toggleEraser()"
+                                        class="win95-button flex-1 flex items-center justify-center gap-x-2 text-xs py-1">
+                                    <i class="fa-solid fa-eraser"></i>
+                                    <span id="eraser-text">ERASER</span>
+                                </button>
+                                
+                                <button onclick="clearPreview()" 
+                                        class="win95-button flex-1 flex items-center justify-center gap-x-2 text-xs py-1">
+                                    <i class="fa-solid fa-trash"></i>
+                                    <span>CLEAR</span>
+                                </button>
+                            </div>
+                            
+                            <button onclick="connectToWhiteboard()" id="connect-btn"
+                                    class="win95-button w-full py-2 text-sm flex items-center justify-center gap-x-2 bg-[#006600] text-white border-[#00aa00]">
+                                <i class="fa-solid fa-plug"></i>
+                                <span>CONNECT TO WHITEBOARD</span>
+                            </button>
+                            
+                            <button onclick="calibratePen()" 
+                                    class="win95-button w-full py-1 text-xs flex items-center justify-center gap-x-2">
+                                <i class="fa-solid fa-sync"></i>
+                                <span>CALIBRATE PEN TIP</span>
+                            </button>
                         </div>
                     </div>
                 </div>
-
-                <!-- Status Footer -->
-                <div class="px-6 py-3 border-t border-slate-800 bg-slate-950 text-xs flex items-center justify-between text-slate-400">
+                
+                <!-- Connection Status -->
+                <div class="mx-3 mb-3 px-3 py-2 bg-black text-[#00ff41] text-xs font-mono border-2 border-[#00aa00]">
                     <div id="connection-status" class="flex items-center gap-x-2">
-                        <i class="fa-solid fa-wifi text-emerald-500"></i>
-                        <span>Not connected</span>
+                        <i class="fa-solid fa-wifi"></i>
+                        <span>NOT CONNECTED</span>
                     </div>
-                    <div class="flex items-center gap-x-4 text-[10px]">
-                        <div>Tip tracking active • 60 FPS</div>
-                        <div class="px-2 py-0.5 bg-slate-800 rounded">v2.4.1</div>
-                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Preview Strip at Bottom -->
+        <div class="h-28 bg-[#1a1a1a] border-t-4 border-[#333] p-2 flex-shrink-0">
+            <div class="flex items-center gap-x-3 h-full">
+                <div class="text-[#00ff41] text-xs font-mono px-2">PREVIEW</div>
+                <canvas id="preview-canvas" width="420" height="90" class="retro-canvas bg-white border border-[#666]"></canvas>
+                <div class="flex-1 text-[10px] text-[#666] font-mono leading-tight">
+                    LIVE FEEDBACK<br>
+                    DRAWING ONLY WHEN<br>
+                    POINTING GESTURE
                 </div>
             </div>
         </div>
     </div>
 
     <!-- WHITEBOARD MODE -->
-    <div id="whiteboard-mode" class="hidden min-h-screen bg-slate-900 flex flex-col">
-        <!-- Top Bar -->
-        <div class="h-16 border-b border-slate-800 bg-slate-950 px-6 flex items-center justify-between z-50">
-            <div class="flex items-center gap-x-4">
+    <div id="whiteboard-mode" class="hidden min-h-screen bg-[#c0c0c0] flex flex-col">
+        <!-- Title Bar -->
+        <div class="win95-titlebar px-3 py-1 flex-shrink-0">
+            <div class="flex items-center justify-between w-full">
                 <div class="flex items-center gap-x-3">
-                    <div class="w-10 h-10 bg-emerald-600 rounded-2xl flex items-center justify-center">
-                        <i class="fa-solid fa-chalkboard text-white text-2xl"></i>
+                    <div class="flex items-center gap-x-2">
+                        <i class="fa-solid fa-chalkboard text-white"></i>
+                        <span class="font-bold tracking-widest">PENSYNC 95 - WHITEBOARD DISPLAY</span>
                     </div>
-                    <div>
-                        <div class="font-semibold text-2xl tracking-tight">Whiteboard Display</div>
-                        <div id="wb-status" class="text-emerald-400 text-xs flex items-center gap-x-1">
-                            <i class="fa-solid fa-circle text-[9px]"></i> 
-                            <span>Waiting for controller connection...</span>
-                        </div>
-                    </div>
+                    <div id="wb-status" class="px-2 py-0.5 text-xs bg-[#ffff00] text-black border border-black font-bold">WAITING FOR CONTROLLER...</div>
                 </div>
-            </div>
-            
-            <div class="flex items-center gap-x-4">
-                <!-- Local Toolbar -->
-                <div class="flex items-center gap-x-1 bg-slate-900 border border-slate-700 rounded-3xl p-1">
-                    <div id="wb-color-palette" class="flex items-center gap-x-1 px-2">
-                        <!-- JS populated -->
-                    </div>
-                    
-                    <div class="h-6 w-px bg-slate-700 mx-1"></div>
-                    
-                    <button onclick="wbToggleEraser()" id="wb-eraser-btn"
-                            class="tool-btn px-4 py-1.5 text-sm rounded-2xl flex items-center gap-x-2 hover:bg-slate-800">
-                        <i class="fa-solid fa-eraser"></i>
-                        <span>Eraser</span>
-                    </button>
-                    
-                    <button onclick="clearWhiteboard()" 
-                            class="px-4 py-1.5 text-sm rounded-2xl flex items-center gap-x-2 hover:bg-slate-800 border border-slate-700">
-                        <i class="fa-solid fa-trash-alt"></i>
-                        <span>Clear</span>
-                    </button>
-                </div>
-                
-                <button onclick="exitMode()" 
-                        class="px-5 py-2 text-sm rounded-2xl border border-slate-700 hover:bg-slate-800 flex items-center gap-x-2 text-slate-300">
-                    <i class="fa-solid fa-sign-out-alt"></i>
-                    <span>Exit</span>
-                </button>
+                <button onclick="exitMode()" class="win95-button text-xs px-4 py-0.5">EXIT</button>
             </div>
         </div>
-
-        <!-- Main Whiteboard Area -->
-        <div class="flex-1 relative flex items-center justify-center bg-[#0f172a] p-8 overflow-hidden" id="whiteboard-container">
+        
+        <div class="flex-1 flex items-center justify-center p-6 relative" id="whiteboard-container">
             <div class="relative">
                 <canvas id="whiteboard-canvas" width="1280" height="800" 
-                        class="whiteboard-canvas rounded-3xl bg-white shadow-2xl cursor-crosshair border border-slate-700"></canvas>
+                        class="retro-canvas bg-white cursor-crosshair"></canvas>
                 
                 <!-- Remote Pointer -->
-                <div id="remote-pointer" class="hidden remote-pointer" style="left: 0; top: 0;"></div>
+                <div id="remote-pointer" class="hidden absolute w-7 h-7 border-[3px] border-[#ff0000] rounded-full pointer-events-none"
+                     style="box-shadow: 0 0 12px #ff0000; transition: left 0.04s linear, top 0.04s linear;">
+                    <div class="absolute top-1/2 left-1/2 w-2 h-px bg-[#ff0000] -translate-x-1/2 -translate-y-1/2" id="angle-indicator"></div>
+                </div>
                 
-                <div class="absolute -bottom-9 left-1/2 -translate-x-1/2 text-xs text-slate-500 flex items-center gap-x-2">
-                    <div class="flex items-center gap-x-1.5">
-                        <i class="fa-solid fa-info-circle"></i>
-                        <span>Local mouse drawing enabled • Remote input overrides color/size</span>
-                    </div>
+                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs text-[#333] font-mono flex items-center gap-x-2">
+                    <span>LOCAL MOUSE DRAWING ENABLED • REMOTE INPUT ACTIVE</span>
                 </div>
             </div>
         </div>
         
-        <!-- Bottom Status -->
-        <div class="h-12 border-t border-slate-800 bg-slate-950 px-6 flex items-center justify-between text-xs text-slate-400">
-            <div class="flex items-center gap-x-5">
-                <div id="remote-info" class="flex items-center gap-x-2">
-                    <span class="px-3 py-1 bg-slate-900 rounded-2xl border border-slate-700">No controller connected</span>
-                </div>
-                <div id="remote-metrics" class="hidden text-emerald-400 font-mono text-xs">
-                    <span id="remote-pos">X: — Y: —</span> • 
-                    <span id="remote-angle">Angle: —°</span>
-                </div>
+        <!-- Bottom Toolbar -->
+        <div class="h-14 bg-[#c0c0c0] border-t-4 border-[#808080] px-4 flex items-center justify-between flex-shrink-0">
+            <div class="flex items-center gap-x-3">
+                <div id="wb-color-palette" class="flex gap-x-1"></div>
+                
+                <div class="h-8 w-px bg-[#808080]"></div>
+                
+                <button onclick="wbToggleEraser()" id="wb-eraser-btn"
+                        class="win95-button flex items-center gap-x-2 px-4 py-1 text-sm">
+                    <i class="fa-solid fa-eraser"></i>
+                    <span>ERASER</span>
+                </button>
+                
+                <button onclick="clearWhiteboard()" 
+                        class="win95-button flex items-center gap-x-2 px-4 py-1 text-sm">
+                    <i class="fa-solid fa-trash"></i>
+                    <span>CLEAR ALL</span>
+                </button>
             </div>
             
-            <div class="flex items-center gap-x-4">
-                <div class="px-3 py-1 bg-slate-900 rounded-2xl border border-slate-700 text-emerald-400 text-xs flex items-center">
-                    <i class="fa-solid fa-sync fa-spin mr-2 text-xs"></i>
-                    <span>SYNCED • 60fps</span>
-                </div>
-                <div class="text-slate-500">1280 × 800 • 24-bit</div>
+            <div id="remote-info" class="text-xs font-mono bg-black text-[#00ff41] px-3 py-1 border border-[#00aa00]">
+                NO CONTROLLER CONNECTED
             </div>
         </div>
     </div>
 
     <script>
-        // Tailwind script
+        // Tailwind + Retro setup
         function initTailwind() {
-            document.documentElement.style.setProperty('--accent', '#6366f1');
+            // Already styled with custom CSS
         }
 
-        // Global variables
+        // Globals
         let currentMode = null;
         let channel = null;
         let isConnected = false;
         
-        // Whiteboard variables
+        // Whiteboard
         let wbCanvas, wbCtx;
         let isDrawing = false;
         let lastX = 0, lastY = 0;
-        let currentColor = '#1e2937';
-        let currentSize = 6;
+        let currentColor = '#000000';
+        let currentSize = 8;
         let isErasing = false;
         let remoteLastX = null, remoteLastY = null;
         
-        // Touchscreen variables
+        // Touchscreen
         let tsCanvas, tsCtx;
         let previewCanvas, previewCtx;
         let hands, camera;
-        let videoElement;
-        let overlayCanvas, overlayCtx;
+        let videoElement, overlayCanvas, overlayCtx;
         let positionHistory = [];
         let lastSentTime = 0;
         let isEraserActive = false;
-        let tsCurrentColor = '#1e2937';
-        let tsCurrentSize = 6;
-        let penCalibrated = false;
+        let tsCurrentColor = '#000000';
+        let tsCurrentSize = 8;
+        let penDetected = false;
+        let analysisCanvas, analysisCtx; // For pen tip detection
         
-        // MediaPipe hand connections
         const HAND_CONNECTIONS = [
-            [0, 1], [1, 2], [2, 3], [3, 4],      // thumb
-            [0, 5], [5, 6], [6, 7], [7, 8],      // index
-            [0, 9], [9, 10], [10, 11], [11, 12], // middle
-            [0, 13], [13, 14], [14, 15], [15, 16], // ring
-            [0, 17], [17, 18], [18, 19], [19, 20]  // pinky
+            [0,1],[1,2],[2,3],[3,4],
+            [0,5],[5,6],[6,7],[7,8],
+            [0,9],[9,10],[10,11],[11,12],
+            [0,13],[13,14],[14,15],[15,16],
+            [0,17],[17,18],[18,19],[19,20]
         ];
 
-        // ==================== LANDING & MODE SWITCHING ====================
+        // ==================== MODE SWITCHING ====================
         function enterTouchscreenMode() {
             document.getElementById('landing-page').classList.add('hidden');
-            document.getElementById('touchscreen-mode').classList.remove('hidden');
+            const tsMode = document.getElementById('touchscreen-mode');
+            tsMode.classList.remove('hidden');
             currentMode = 'touchscreen';
             initTouchscreenMode();
         }
@@ -519,7 +552,6 @@
                 if (channel) channel.close();
             }
             
-            // Reset
             document.getElementById('touchscreen-mode').classList.add('hidden');
             document.getElementById('whiteboard-mode').classList.add('hidden');
             document.getElementById('landing-page').classList.remove('hidden');
@@ -527,56 +559,53 @@
             isConnected = false;
         }
 
+        function toggleFullscreen() {
+            const elem = document.getElementById('touchscreen-mode');
+            if (!document.fullscreenElement) {
+                elem.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
         // ==================== WHITEBOARD MODE ====================
         function initWhiteboardMode() {
             wbCanvas = document.getElementById('whiteboard-canvas');
-            wbCtx = wbCanvas.getContext('2d', { alpha: true });
-            
-            // Set initial background
+            wbCtx = wbCanvas.getContext('2d');
             wbCtx.fillStyle = '#ffffff';
             wbCtx.fillRect(0, 0, wbCanvas.width, wbCanvas.height);
             
-            // Mouse events for local drawing
             wbCanvas.addEventListener('mousedown', startDrawing);
             wbCanvas.addEventListener('mousemove', draw);
             wbCanvas.addEventListener('mouseup', stopDrawing);
             wbCanvas.addEventListener('mouseleave', stopDrawing);
             
-            // Touch support
             wbCanvas.addEventListener('touchstart', handleTouchStart);
             wbCanvas.addEventListener('touchmove', handleTouchMove);
             wbCanvas.addEventListener('touchend', stopDrawing);
             
-            // Init color palette for whiteboard
             initWBColorPalette();
-            
-            // Init BroadcastChannel
             initWhiteboardChannel();
             
-            // Show initial remote pointer hidden
             document.getElementById('remote-pointer').classList.add('hidden');
-            
-            // Instructions toast
-            showToast("Whiteboard ready. Open another tab in Touchscreen mode to connect.", 4500);
+            showRetroToast("WHITEBOARD READY. CONNECT TOUCHSCREEN CONTROLLER.");
         }
 
         function initWBColorPalette() {
             const container = document.getElementById('wb-color-palette');
             container.innerHTML = '';
-            
-            const colors = ['#1e2937', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899'];
+            const colors = ['#000000', '#ff0000', '#0000ff', '#00aa00', '#aa00aa', '#ffaa00'];
             
             colors.forEach(color => {
                 const btn = document.createElement('div');
-                btn.className = `w-7 h-7 rounded-xl cursor-pointer border border-slate-600 tool-btn ${color === currentColor ? 'ring-2 ring-offset-2 ring-offset-slate-900 ring-white' : ''}`;
+                btn.className = `w-6 h-6 border-2 border-black cursor-pointer ${color === currentColor ? 'ring-2 ring-offset-2 ring-offset-[#c0c0c0] ring-white' : ''}`;
                 btn.style.backgroundColor = color;
                 btn.onclick = () => {
                     currentColor = color;
                     isErasing = false;
                     updateWBToolUI();
-                    // Broadcast tool change
-                    if (channel) {
-                        channel.postMessage({ type: 'tool', color: color, erase: false, size: currentSize });
+                    if (channel && isConnected) {
+                        channel.postMessage({ type: 'tool', color, erase: false, size: currentSize });
                     }
                 };
                 container.appendChild(btn);
@@ -586,11 +615,11 @@
         function updateWBToolUI() {
             const eraserBtn = document.getElementById('wb-eraser-btn');
             if (isErasing) {
-                eraserBtn.classList.add('bg-red-900/50', 'border-red-500');
-                eraserBtn.classList.remove('border-slate-700');
+                eraserBtn.style.background = '#ffaaaa';
+                eraserBtn.style.borderColor = '#ff0000';
             } else {
-                eraserBtn.classList.remove('bg-red-900/50', 'border-red-500');
-                eraserBtn.classList.add('border-slate-700');
+                eraserBtn.style.background = '';
+                eraserBtn.style.borderColor = '';
             }
         }
 
@@ -598,23 +627,15 @@
             isErasing = !isErasing;
             updateWBToolUI();
             if (channel && isConnected) {
-                channel.postMessage({ 
-                    type: 'tool', 
-                    color: currentColor, 
-                    erase: isErasing, 
-                    size: currentSize 
-                });
+                channel.postMessage({ type: 'tool', color: currentColor, erase: isErasing, size: currentSize });
             }
         }
 
         function clearWhiteboard() {
-            if (!wbCtx || !wbCanvas) return;
+            if (!wbCtx) return;
             wbCtx.fillStyle = '#ffffff';
             wbCtx.fillRect(0, 0, wbCanvas.width, wbCanvas.height);
-            
-            if (channel && isConnected) {
-                channel.postMessage({ type: 'clear' });
-            }
+            if (channel && isConnected) channel.postMessage({ type: 'clear' });
         }
 
         function startDrawing(e) {
@@ -626,7 +647,6 @@
 
         function draw(e) {
             if (!isDrawing || !wbCtx) return;
-            
             const rect = wbCanvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
@@ -640,14 +660,10 @@
             wbCtx.moveTo(lastX, lastY);
             wbCtx.lineTo(x, y);
             wbCtx.stroke();
-            
-            lastX = x;
-            lastY = y;
+            lastX = x; lastY = y;
         }
 
-        function stopDrawing() {
-            isDrawing = false;
-        }
+        function stopDrawing() { isDrawing = false; }
 
         function handleTouchStart(e) {
             e.preventDefault();
@@ -673,75 +689,54 @@
             wbCtx.moveTo(lastX, lastY);
             wbCtx.lineTo(x, y);
             wbCtx.stroke();
-            
-            lastX = x;
-            lastY = y;
+            lastX = x; lastY = y;
         }
 
         function initWhiteboardChannel() {
             channel = new BroadcastChannel('pen-track-whiteboard-v1');
-            
             channel.onmessage = (event) => {
                 const data = event.data;
-                
                 if (data.type === 'join' && data.role === 'controller') {
                     isConnected = true;
-                    document.getElementById('wb-status').innerHTML = 
-                        '<i class="fa-solid fa-circle text-emerald-400 text-[9px]"></i> <span>Controller connected • Receiving live input</span>';
-                    document.getElementById('remote-info').innerHTML = 
-                        '<span class="px-3 py-1 bg-emerald-900/50 text-emerald-400 rounded-2xl border border-emerald-700">Touchscreen Controller Connected</span>';
-                    showToast("Touchscreen controller connected! Pen input is now live.", 3000);
-                } 
-                else if (data.type === 'update') {
+                    document.getElementById('wb-status').innerHTML = 'CONTROLLER CONNECTED';
+                    document.getElementById('remote-info').innerHTML = 'TOUCHSCREEN CONTROLLER LIVE';
+                    showRetroToast("CONTROLLER CONNECTED! PEN INPUT ACTIVE.");
+                } else if (data.type === 'update') {
                     handleRemoteUpdate(data);
-                } 
-                else if (data.type === 'tool') {
-                    // Sync tool from controller
+                } else if (data.type === 'tool') {
                     currentColor = data.color || currentColor;
                     isErasing = data.erase || false;
                     currentSize = data.size || currentSize;
                     updateWBToolUI();
-                } 
-                else if (data.type === 'clear') {
+                } else if (data.type === 'clear') {
                     wbCtx.fillStyle = '#ffffff';
                     wbCtx.fillRect(0, 0, wbCanvas.width, wbCanvas.height);
                 }
             };
-            
-            // Announce presence
             setTimeout(() => {
-                if (channel) {
-                    channel.postMessage({ type: 'whiteboard-ready' });
-                }
-            }, 800);
+                if (channel) channel.postMessage({ type: 'whiteboard-ready' });
+            }, 600);
         }
 
         function handleRemoteUpdate(data) {
             if (!wbCanvas || !wbCtx) return;
             
             const ptr = document.getElementById('remote-pointer');
-            const container = document.getElementById('whiteboard-container');
-            const rect = wbCanvas.getBoundingClientRect();
+            const containerRect = document.getElementById('whiteboard-container').getBoundingClientRect();
+            const canvasRect = wbCanvas.getBoundingClientRect();
             
-            // Position the remote pointer (relative to canvas)
-            const pointerLeft = (data.x / wbCanvas.width) * rect.width + rect.left - container.getBoundingClientRect().left;
-            const pointerTop = (data.y / wbCanvas.height) * rect.height + rect.top - container.getBoundingClientRect().top;
+            const pointerLeft = ((data.x / wbCanvas.width) * canvasRect.width) + (canvasRect.left - containerRect.left);
+            const pointerTop = ((data.y / wbCanvas.height) * canvasRect.height) + (canvasRect.top - containerRect.top);
             
             ptr.style.left = `${pointerLeft}px`;
             ptr.style.top = `${pointerTop}px`;
             ptr.style.display = 'block';
             ptr.classList.remove('hidden');
             
-            // Rotate the angle indicator
-            const angleRad = (data.angle || 0) * Math.PI / 180;
-            ptr.style.transform = `translate(-50%, -50%) rotate(${data.angle || 0}deg)`;
+            // Rotate angle indicator
+            const angleEl = document.getElementById('angle-indicator');
+            if (angleEl) angleEl.style.transform = `rotate(${data.angle || 0}deg)`;
             
-            // Update metrics
-            document.getElementById('remote-pos').innerText = `X: ${Math.round(data.x)} Y: ${Math.round(data.y)}`;
-            document.getElementById('remote-angle').innerText = `Angle: ${Math.round(data.angle || 0)}°`;
-            document.getElementById('remote-metrics').classList.remove('hidden');
-            
-            // Draw if in drawing mode
             if (data.drawing) {
                 if (remoteLastX !== null && remoteLastY !== null) {
                     wbCtx.strokeStyle = data.erase ? '#ffffff' : (data.color || currentColor);
@@ -757,7 +752,6 @@
                 remoteLastX = data.x;
                 remoteLastY = data.y;
             } else {
-                // Pen lifted - reset stroke start
                 remoteLastX = null;
                 remoteLastY = null;
             }
@@ -769,54 +763,47 @@
             overlayCanvas = document.getElementById('overlay-canvas');
             overlayCtx = overlayCanvas.getContext('2d');
             previewCanvas = document.getElementById('preview-canvas');
-            previewCtx = previewCanvas.getContext('2d', { alpha: true });
+            previewCtx = previewCanvas.getContext('2d');
             
-            // Init preview background
             previewCtx.fillStyle = '#ffffff';
             previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
             
-            // Color palette for touchscreen
+            // Hidden canvas for pen tip analysis
+            analysisCanvas = document.createElement('canvas');
+            analysisCanvas.width = 640;
+            analysisCanvas.height = 480;
+            analysisCtx = analysisCanvas.getContext('2d', { willReadFrequently: true });
+            
             initTSColorPalette();
             
-            // Brush size listener
             const sizeSlider = document.getElementById('brush-size');
             sizeSlider.oninput = updateBrushSize;
+            document.getElementById('size-value').innerText = tsCurrentSize;
             
-            // Init MediaPipe
             initMediaPipe();
-            
-            // Init channel (but don't connect yet)
             initTouchscreenChannel();
             
-            // Instructions
             setTimeout(() => {
-                document.getElementById('tracking-status').innerText = 'POINT PEN TIP AT CAMERA';
-            }, 1200);
+                document.getElementById('tracking-status').innerText = 'POINT INDEX FINGER OR HOLD PEN';
+            }, 1400);
         }
 
         function initTSColorPalette() {
             const container = document.getElementById('color-palette');
             container.innerHTML = '';
-            
-            const colors = ['#1e2937', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'];
+            const colors = ['#000000', '#ff0000', '#0000ff', '#00aa00', '#aa00aa', '#ffaa00'];
             
             colors.forEach(color => {
                 const btn = document.createElement('div');
-                btn.className = `w-8 h-8 rounded-2xl cursor-pointer border-2 border-white/70 shadow-sm tool-btn ${color === tsCurrentColor ? 'ring-2 ring-offset-2 ring-offset-slate-900 ring-white scale-110' : ''}`;
+                btn.className = `w-7 h-7 border-2 border-black cursor-pointer ${color === tsCurrentColor ? 'ring-2 ring-offset-2 ring-offset-[#c0c0c0] ring-white' : ''}`;
                 btn.style.backgroundColor = color;
                 btn.onclick = () => {
                     tsCurrentColor = color;
                     isEraserActive = false;
-                    document.getElementById('eraser-btn').classList.remove('bg-red-900/50', 'border-red-500');
+                    document.getElementById('eraser-btn').classList.remove('!bg-red-200');
                     updateTSColorUI();
-                    
                     if (channel && isConnected) {
-                        channel.postMessage({ 
-                            type: 'tool', 
-                            color: tsCurrentColor, 
-                            erase: false, 
-                            size: tsCurrentSize 
-                        });
+                        channel.postMessage({ type: 'tool', color: tsCurrentColor, erase: false, size: tsCurrentSize });
                     }
                 };
                 container.appendChild(btn);
@@ -826,11 +813,11 @@
         function updateTSColorUI() {
             const container = document.getElementById('color-palette');
             Array.from(container.children).forEach((child, i) => {
-                const colors = ['#1e2937', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'];
+                const colors = ['#000000', '#ff0000', '#0000ff', '#00aa00', '#aa00aa', '#ffaa00'];
                 if (colors[i] === tsCurrentColor && !isEraserActive) {
-                    child.classList.add('ring-2', 'ring-offset-2', 'ring-offset-slate-900', 'ring-white', 'scale-110');
+                    child.classList.add('ring-2', 'ring-offset-2', 'ring-offset-[#c0c0c0]', 'ring-white');
                 } else {
-                    child.classList.remove('ring-2', 'ring-offset-2', 'ring-offset-slate-900', 'ring-white', 'scale-110');
+                    child.classList.remove('ring-2', 'ring-offset-2', 'ring-offset-[#c0c0c0]', 'ring-white');
                 }
             });
         }
@@ -839,14 +826,8 @@
             const slider = document.getElementById('brush-size');
             tsCurrentSize = parseInt(slider.value);
             document.getElementById('size-value').innerText = tsCurrentSize;
-            
             if (channel && isConnected) {
-                channel.postMessage({ 
-                    type: 'tool', 
-                    color: tsCurrentColor, 
-                    erase: isEraserActive, 
-                    size: tsCurrentSize 
-                });
+                channel.postMessage({ type: 'tool', color: tsCurrentColor, erase: isEraserActive, size: tsCurrentSize });
             }
         }
 
@@ -856,231 +837,307 @@
             const text = document.getElementById('eraser-text');
             
             if (isEraserActive) {
-                btn.classList.add('bg-red-900/50', 'border-red-500');
-                btn.classList.remove('border-slate-700');
-                text.innerText = 'Drawing';
+                btn.classList.add('!bg-red-200');
+                text.innerText = 'DRAWING';
             } else {
-                btn.classList.remove('bg-red-900/50', 'border-red-500');
-                btn.classList.add('border-slate-700');
-                text.innerText = 'Eraser';
+                btn.classList.remove('!bg-red-200');
+                text.innerText = 'ERASER';
             }
             
             if (channel && isConnected) {
-                channel.postMessage({ 
-                    type: 'tool', 
-                    color: tsCurrentColor, 
-                    erase: isEraserActive, 
-                    size: tsCurrentSize 
-                });
+                channel.postMessage({ type: 'tool', color: tsCurrentColor, erase: isEraserActive, size: tsCurrentSize });
             }
         }
 
         function initMediaPipe() {
             hands = new Hands({
-                locateFile: (file) => {
-                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-                }
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
             });
             
             hands.setOptions({
                 maxNumHands: 1,
-                modelComplexity: 1,           // Highest accuracy
-                minDetectionConfidence: 0.75,
-                minTrackingConfidence: 0.75
+                modelComplexity: 1,
+                minDetectionConfidence: 0.72,
+                minTrackingConfidence: 0.72
             });
             
             hands.onResults(onHandResults);
             
-            // Start camera
             camera = new Camera(videoElement, {
                 onFrame: async () => {
-                    if (hands) {
-                        await hands.send({ image: videoElement });
-                    }
+                    if (hands) await hands.send({ image: videoElement });
                 },
                 width: 640,
                 height: 480
             });
             
             camera.start().then(() => {
-                // Set overlay size to match video
                 setTimeout(() => {
                     overlayCanvas.width = videoElement.videoWidth || 640;
                     overlayCanvas.height = videoElement.videoHeight || 480;
-                }, 800);
+                }, 700);
             }).catch(err => {
-                console.error("Camera error:", err);
-                document.getElementById('tracking-status').innerText = 'CAMERA ERROR — Allow access';
-                document.getElementById('ts-status').innerHTML = '<span class="text-red-400">Camera access denied</span>';
+                document.getElementById('tracking-status').innerText = 'CAMERA ERROR - ALLOW ACCESS';
             });
         }
 
+        // IMPROVED: Pointing pose detection (index out, others tucked)
+        function isPointingPose(landmarks) {
+            const idxTip = landmarks[8];
+            const idxPip = landmarks[6];
+            const idxMcp = landmarks[5];
+            
+            const midTip = landmarks[12];
+            const ringTip = landmarks[16];
+            const pinkyTip = landmarks[20];
+            const thumbTip = landmarks[4];
+            
+            // Index must be clearly extended
+            const indexExtended = (idxTip.y < idxPip.y - 0.018) && 
+                                  (Math.hypot(idxTip.x - idxMcp.x, idxTip.y - idxMcp.y) > 0.09);
+            
+            // Other fingers curled (tips close to or below their PIP joints)
+            const middleCurled = midTip.y > landmarks[10].y - 0.015;
+            const ringCurled = ringTip.y > landmarks[14].y - 0.015;
+            const pinkyCurled = pinkyTip.y > landmarks[18].y - 0.015;
+            const thumbCurled = Math.hypot(thumbTip.x - landmarks[2].x, thumbTip.y - landmarks[2].y) < 0.12;
+            
+            return indexExtended && middleCurled && ringCurled && pinkyCurled && thumbCurled;
+        }
+
+        // IMPROVED PEN TIP DETECTION (long object in hand)
+        function detectPenTip(landmarks, videoFrame) {
+            if (!analysisCtx || !videoFrame) return null;
+            
+            const tip = landmarks[8];
+            const pip = landmarks[6];
+            const mcp = landmarks[5];
+            
+            // Direction vector from MCP to TIP (finger direction)
+            const dx = tip.x - mcp.x;
+            const dy = tip.y - mcp.y;
+            const len = Math.hypot(dx, dy) || 0.1;
+            const unitX = dx / len;
+            const unitY = dy / len;
+            
+            // Sample along the line extending beyond the fingertip
+            const startX = Math.floor(tip.x * analysisCanvas.width);
+            const startY = Math.floor(tip.y * analysisCanvas.height);
+            
+            let farthestX = startX;
+            let farthestY = startY;
+            let maxDist = 0;
+            let darkPixelFound = false;
+            
+            // Sample 80 pixels ahead in finger direction
+            for (let dist = 8; dist < 85; dist += 3) {
+                const sx = Math.floor(startX + unitX * dist * 1.8);
+                const sy = Math.floor(startY + unitY * dist * 1.8);
+                
+                if (sx < 0 || sx >= analysisCanvas.width || sy < 0 || sy >= analysisCanvas.height) break;
+                
+                const pixel = analysisCtx.getImageData(sx, sy, 1, 1).data;
+                const brightness = (pixel[0] + pixel[1] + pixel[2]) / 3;
+                
+                // Dark object (pen/pencil) detection
+                if (brightness < 95) {
+                    darkPixelFound = true;
+                    if (dist > maxDist) {
+                        maxDist = dist;
+                        farthestX = sx;
+                        farthestY = sy;
+                    }
+                }
+            }
+            
+            if (darkPixelFound && maxDist > 22) {
+                // Convert back to normalized
+                const normX = farthestX / analysisCanvas.width;
+                const normY = farthestY / analysisCanvas.height;
+                return { x: normX, y: normY, isPen: true };
+            }
+            
+            return null;
+        }
+
         function onHandResults(results) {
-            if (!overlayCtx || !overlayCanvas) return;
+            if (!overlayCtx || !overlayCanvas || !videoElement) return;
             
             overlayCtx.save();
             overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             
             const statusEl = document.getElementById('tracking-status');
             const penIndicator = document.getElementById('pen-indicator');
+            const modeBadge = document.getElementById('ts-mode-badge');
+            const penStatus = document.getElementById('pen-status');
+            
+            // Draw video frame to analysis canvas for pen detection
+            if (analysisCtx && videoElement.readyState === 4) {
+                analysisCtx.drawImage(videoElement, 0, 0, analysisCanvas.width, analysisCanvas.height);
+            }
             
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
-                const handedness = results.multiHandedness ? results.multiHandedness[0].label : 'Right';
                 
-                // Draw hand skeleton (subtle)
+                // Draw hand skeleton (retro green)
                 drawConnectors(overlayCtx, landmarks, HAND_CONNECTIONS, {
-                    color: '#64748b',
-                    lineWidth: 2
+                    color: '#00aa00',
+                    lineWidth: 2.5
                 });
-                
                 drawLandmarks(overlayCtx, landmarks, {
-                    color: '#e0e7ff',
-                    lineWidth: 1.5,
-                    radius: 3
+                    color: '#ffff00',
+                    lineWidth: 2,
+                    radius: 2.5
                 });
                 
-                // Highlight pen tip (index finger tip = landmark 8)
                 const tip = landmarks[8];
                 const pip = landmarks[6];
                 const mcp = landmarks[5];
                 const wrist = landmarks[0];
                 
-                // Calculate if index finger is extended (pointing pose)
-                const isExtended = tip.y < pip.y - 0.015;
+                // === PEN TIP DETECTION ===
+                let finalTipX = tip.x;
+                let finalTipY = tip.y;
+                let usingPenTip = false;
                 
-                // Calculate finger angle (from MCP to TIP)
-                const dx = tip.x - mcp.x;
-                const dy = tip.y - mcp.y;
-                let angle = Math.atan2(dy, dx) * (180 / Math.PI);
-                if (angle < 0) angle += 360;
+                const penTipResult = detectPenTip(landmarks, videoElement);
+                if (penTipResult && penTipResult.isPen) {
+                    finalTipX = penTipResult.x;
+                    finalTipY = penTipResult.y;
+                    usingPenTip = true;
+                    penDetected = true;
+                    modeBadge.innerText = 'PEN MODE';
+                    modeBadge.style.background = '#ffaa00';
+                    penStatus.classList.remove('hidden');
+                } else {
+                    penDetected = false;
+                    modeBadge.innerText = 'HAND MODE';
+                    modeBadge.style.background = '#ffff00';
+                    penStatus.classList.add('hidden');
+                }
                 
-                // Calculate depth approximation (hand scale)
-                const middleTip = landmarks[12];
-                const handScale = Math.hypot(middleTip.x - wrist.x, middleTip.y - wrist.y);
-                const normalizedDepth = Math.max(0.1, Math.min(0.95, 1.1 - handScale * 1.8));
-                
-                // Smooth position
-                positionHistory.push({ x: tip.x, y: tip.y });
-                if (positionHistory.length > 6) positionHistory.shift();
-                
+                // Smoothing
+                positionHistory.push({ x: finalTipX, y: finalTipY });
+                if (positionHistory.length > 5) positionHistory.shift();
                 let avgX = 0, avgY = 0;
                 positionHistory.forEach(p => { avgX += p.x; avgY += p.y; });
                 avgX /= positionHistory.length;
                 avgY /= positionHistory.length;
                 
-                // Map to preview canvas coordinates (flipped because of mirror)
+                // === STRICT POINTING POSE CHECK ===
+                const isPointing = isPointingPose(landmarks);
+                
+                // Metrics
                 const mappedX = Math.floor((1 - avgX) * previewCanvas.width);
                 const mappedY = Math.floor(avgY * previewCanvas.height);
                 
-                // Update metrics
+                const dx = finalTipX - mcp.x;
+                const dy = finalTipY - mcp.y;
+                let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                if (angle < 0) angle += 360;
+                
+                const handScale = Math.hypot(landmarks[12].x - wrist.x, landmarks[12].y - wrist.y);
+                const normalizedDepth = Math.max(0.12, Math.min(0.92, 1.15 - handScale * 1.9));
+                
                 document.getElementById('metric-pos').innerHTML = 
-                    `X: <span class="text-indigo-400">${mappedX}</span> Y: <span class="text-indigo-400">${mappedY}</span>`;
-                document.getElementById('metric-depth').innerHTML = 
-                    `${(normalizedDepth * 100).toFixed(0)} <span class="text-xs text-slate-400">/100</span>`;
-                document.getElementById('metric-angle').innerHTML = 
-                    `${angle.toFixed(0)}°`;
-                document.getElementById('confidence').innerText = `CONF: ${Math.floor(results.multiHandLandmarks[0][8].visibility * 100 || 92)}%`;
+                    `X: <span class="text-[#ffff00]">${mappedX}</span> Y: <span class="text-[#ffff00]">${mappedY}</span>`;
+                document.getElementById('metric-depth').innerHTML = `${(normalizedDepth * 100).toFixed(0)}`;
+                document.getElementById('metric-angle').innerHTML = `${angle.toFixed(0)}°`;
+                document.getElementById('confidence').innerHTML = `${Math.floor((results.multiHandLandmarks[0][8].visibility || 0.9) * 100)}%`;
                 
-                // Visual pen tip indicator on video
+                // Visual indicator
                 const videoRect = videoElement.getBoundingClientRect();
-                const indicatorX = (1 - avgX) * videoRect.width;
-                const indicatorY = avgY * videoRect.height;
+                const indX = (1 - avgX) * videoRect.width;
+                const indY = avgY * videoRect.height;
                 
-                penIndicator.style.left = `${indicatorX - 10}px`;
-                penIndicator.style.top = `${indicatorY - 10}px`;
+                penIndicator.style.left = `${indX - 12}px`;
+                penIndicator.style.top = `${indY - 12}px`;
                 penIndicator.style.display = 'block';
-                penIndicator.style.borderColor = isExtended ? '#eab308' : '#64748b';
+                penIndicator.style.borderColor = usingPenTip ? '#ffff00' : '#00ff41';
                 
-                // Update status
-                statusEl.innerHTML = isExtended ? 
-                    '<span class="text-emerald-400">PEN TIP LOCKED • DRAWING</span>' : 
-                    '<span class="text-amber-400">PEN DETECTED — EXTEND INDEX FINGER</span>';
+                // Status text
+                if (isPointing) {
+                    statusEl.innerHTML = usingPenTip ? 
+                        '<span class="text-[#ffff00]">PEN TIP LOCKED — DRAWING ENABLED</span>' : 
+                        '<span class="text-[#00ff41]">POINTING POSE — DRAWING ENABLED</span>';
+                } else {
+                    statusEl.innerHTML = usingPenTip ? 
+                        '<span class="text-[#ffaa00]">PEN DETECTED — TUCK OTHER FINGERS TO DRAW</span>' : 
+                        '<span class="text-[#ff6666]">TUCK FINGERS — EXTEND INDEX TO DRAW</span>';
+                }
                 
-                // Send to whiteboard if connected
+                // Send to whiteboard only when pointing + connected
                 const now = Date.now();
-                if (isConnected && channel && (now - lastSentTime > 28)) {  // ~35fps
+                if (isConnected && channel && isPointing && (now - lastSentTime > 32)) {
                     lastSentTime = now;
                     
-                    const drawCommand = {
+                    channel.postMessage({
                         type: 'update',
                         x: mappedX,
                         y: mappedY,
-                        drawing: isExtended && !isEraserActive,
+                        drawing: true,
                         erase: isEraserActive,
                         color: tsCurrentColor,
                         size: tsCurrentSize,
                         angle: angle,
-                        depth: normalizedDepth,
-                        confidence: results.multiHandLandmarks[0][8].visibility || 0.92
-                    };
+                        depth: normalizedDepth
+                    });
                     
-                    channel.postMessage(drawCommand);
-                    
-                    // Also draw locally on preview for immediate feedback
-                    drawOnPreview(mappedX, mappedY, isExtended && !isEraserActive);
+                    drawOnPreview(mappedX, mappedY, true);
+                } else if (!isPointing && previewLastX !== null) {
+                    drawOnPreview(0, 0, false); // lift pen
                 }
                 
-                // Update connection status color
                 if (isConnected) {
                     document.getElementById('connection-status').innerHTML = 
-                        `<i class="fa-solid fa-wifi text-emerald-400"></i> <span class="text-emerald-400">Connected • Streaming</span>`;
+                        `<i class="fa-solid fa-wifi text-[#00ff41]"></i> <span>CONNECTED • STREAMING</span>`;
                 }
             } else {
-                // No hand detected
                 penIndicator.style.display = 'none';
-                statusEl.innerHTML = '<span class="text-red-400">NO PEN DETECTED — SHOW HAND</span>';
-                document.getElementById('metric-pos').innerHTML = '—';
-                document.getElementById('metric-depth').innerHTML = '—';
-                document.getElementById('metric-angle').innerHTML = '—';
+                statusEl.innerHTML = '<span class="text-[#ff6666]">NO HAND DETECTED — SHOW HAND OR PEN</span>';
+                document.getElementById('metric-pos').innerHTML = 'X: --- Y: ---';
+                document.getElementById('metric-depth').innerHTML = '---';
+                document.getElementById('metric-angle').innerHTML = '---°';
+                penStatus.classList.add('hidden');
             }
             
             overlayCtx.restore();
         }
 
+        let previewLastX = null, previewLastY = null;
+
         function drawOnPreview(x, y, shouldDraw) {
             if (!previewCtx) return;
             
-            if (shouldDraw) {
-                if (window.previewLastX != null && window.previewLastY != null) {
-                    previewCtx.strokeStyle = isEraserActive ? '#ffffff' : tsCurrentColor;
-                    previewCtx.lineWidth = tsCurrentSize;
-                    previewCtx.lineJoin = 'round';
-                    previewCtx.lineCap = 'round';
-                    
-                    previewCtx.beginPath();
-                    previewCtx.moveTo(window.previewLastX, window.previewLastY);
-                    previewCtx.lineTo(x, y);
-                    previewCtx.stroke();
-                }
-                window.previewLastX = x;
-                window.previewLastY = y;
-            } else {
-                window.previewLastX = null;
-                window.previewLastY = null;
+            if (shouldDraw && previewLastX !== null && previewLastY !== null) {
+                previewCtx.strokeStyle = isEraserActive ? '#ffffff' : tsCurrentColor;
+                previewCtx.lineWidth = tsCurrentSize;
+                previewCtx.lineJoin = 'round';
+                previewCtx.lineCap = 'round';
+                
+                previewCtx.beginPath();
+                previewCtx.moveTo(previewLastX, previewLastY);
+                previewCtx.lineTo(x, y);
+                previewCtx.stroke();
             }
             
-            // Update preview cursor
-            const cursor = document.getElementById('preview-cursor');
-            if (cursor) {
-                cursor.style.left = `${x}px`;
-                cursor.style.top = `${y}px`;
-                cursor.style.display = 'block';
-                cursor.style.borderColor = isEraserActive ? '#ef4444' : '#6366f1';
+            if (shouldDraw) {
+                previewLastX = x;
+                previewLastY = y;
+            } else {
+                previewLastX = null;
+                previewLastY = null;
             }
         }
 
         function initTouchscreenChannel() {
             channel = new BroadcastChannel('pen-track-whiteboard-v1');
-            
             channel.onmessage = (event) => {
                 const data = event.data;
-                
                 if (data.type === 'whiteboard-ready') {
                     document.getElementById('connection-status').innerHTML = 
-                        `<i class="fa-solid fa-wifi text-amber-400"></i> <span>Whiteboard detected — Click CONNECT</span>`;
+                        `<i class="fa-solid fa-wifi"></i> <span>WHITEBOARD DETECTED — PRESS CONNECT</span>`;
                 } else if (data.type === 'clear') {
-                    // Clear preview too
                     previewCtx.fillStyle = '#ffffff';
                     previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
                 }
@@ -1088,50 +1145,38 @@
         }
 
         function connectToWhiteboard() {
-            if (!channel) {
-                channel = new BroadcastChannel('pen-track-whiteboard-v1');
-            }
-            
+            if (!channel) channel = new BroadcastChannel('pen-track-whiteboard-v1');
             isConnected = true;
             
             const btn = document.getElementById('connect-btn');
             btn.innerHTML = `<i class="fa-solid fa-check"></i> <span>CONNECTED</span>`;
-            btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
-            btn.classList.add('bg-emerald-700', 'cursor-default');
+            btn.style.background = '#006600';
             btn.disabled = true;
             
             document.getElementById('connection-status').innerHTML = 
-                `<i class="fa-solid fa-wifi text-emerald-400"></i> <span class="text-emerald-400">Connected to Whiteboard</span>`;
+                `<i class="fa-solid fa-wifi text-[#00ff41]"></i> <span>CONNECTED TO WHITEBOARD</span>`;
             
-            // Announce join
             channel.postMessage({ type: 'join', role: 'controller' });
             
-            // Send initial tool state
             setTimeout(() => {
                 if (channel) {
-                    channel.postMessage({ 
-                        type: 'tool', 
-                        color: tsCurrentColor, 
-                        erase: isEraserActive, 
-                        size: tsCurrentSize 
-                    });
+                    channel.postMessage({ type: 'tool', color: tsCurrentColor, erase: isEraserActive, size: tsCurrentSize });
                 }
-            }, 300);
+            }, 280);
             
-            showToast("Connected! Your pen movements are now controlling the remote whiteboard.", 2800);
+            showRetroToast("CONNECTED! YOUR PEN NOW CONTROLS THE WHITEBOARD.");
         }
 
         function calibratePen() {
-            penCalibrated = true;
             positionHistory = [];
-            showToast("Pen calibration complete. Tracking optimized for your hand.", 2200);
+            penDetected = false;
+            showRetroToast("PEN TIP CALIBRATION COMPLETE.");
             
-            // Flash the indicator
-            const indicator = document.getElementById('pen-indicator');
-            indicator.style.borderColor = '#22c55e';
+            const ind = document.getElementById('pen-indicator');
+            ind.style.borderColor = '#00ff41';
             setTimeout(() => {
-                if (indicator) indicator.style.borderColor = '#eab308';
-            }, 800);
+                if (ind) ind.style.borderColor = penDetected ? '#ffff00' : '#00ff41';
+            }, 900);
         }
 
         function clearPreview() {
@@ -1139,85 +1184,54 @@
                 previewCtx.fillStyle = '#ffffff';
                 previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
             }
-            window.previewLastX = null;
-            window.previewLastY = null;
+            previewLastX = null;
+            previewLastY = null;
         }
 
-        // ==================== UTILITIES ====================
-        function showToast(message, duration = 3000) {
+        // ==================== UTILS ====================
+        function showRetroToast(msg) {
             const toast = document.createElement('div');
-            toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-slate-900 border border-slate-700 text-white text-sm rounded-3xl shadow-2xl flex items-center gap-x-3 z-[100]`;
-            toast.innerHTML = `
-                <i class="fa-solid fa-info-circle text-indigo-400"></i>
-                <span>${message}</span>
-            `;
+            toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-2 bg-black border-2 border-[#00ff41] text-[#00ff41] text-sm font-mono z-[200] flex items-center gap-x-2`;
+            toast.innerHTML = `<i class="fa-solid fa-info-circle"></i> <span>${msg}</span>`;
             document.body.appendChild(toast);
             
             setTimeout(() => {
-                toast.style.transition = 'all 0.3s ease';
+                toast.style.transition = 'all 0.4s ease';
                 toast.style.opacity = '0';
-                toast.style.transform = 'translate(-50%, 20px)';
-                setTimeout(() => toast.remove(), 300);
-            }, duration);
+                setTimeout(() => toast.remove(), 400);
+            }, 2800);
         }
 
-        function updateRemotePointer(x, y, angle = 0) {
-            // This is handled inside handleRemoteUpdate for whiteboard
-        }
-
-        // Keyboard shortcuts
+        // Keyboard
         document.addEventListener('keydown', function(e) {
-            if (currentMode === 'whiteboard') {
-                if (e.key === 'c' || e.key === 'C') {
-                    clearWhiteboard();
-                }
-                if (e.key === 'e' || e.key === 'E') {
-                    wbToggleEraser();
-                }
-            }
-            
             if (currentMode === 'touchscreen') {
-                if (e.key === 'Escape') {
-                    exitMode();
-                }
-                if (e.key.toLowerCase() === 'e') {
-                    toggleEraser();
-                }
+                if (e.key.toLowerCase() === 'e') toggleEraser();
+                if (e.key === 'Escape') exitMode();
+            }
+            if (currentMode === 'whiteboard') {
+                if (e.key.toLowerCase() === 'e') wbToggleEraser();
+                if (e.key.toLowerCase() === 'c') clearWhiteboard();
             }
         });
 
-        // Initialize everything
         function initializeApp() {
             initTailwind();
+            console.log('%c[PenSync 95] Retro 90s hand/pen tracking initialized.', 'color:#666');
             
-            // Seed some initial colors in case
-            console.log('%c[PenSync] Precision hand-tracked whiteboard initialized. Ready for multi-user demo.', 'color:#64748b');
-            
-            // Easter egg: press "?" for help
-            document.addEventListener('keypress', function(e) {
-                if (e.key === '?') {
-                    showToast("Tip: Hold pen like a real stylus. Extend only your index finger to draw. Pinch to pause.", 4200);
-                }
-            });
-            
-            // Auto hint after 25 seconds if still on landing
+            // Boot hint
             setTimeout(() => {
-                if (!currentMode && document.getElementById('landing-page').classList.contains('hidden') === false) {
+                if (!currentMode) {
                     const hint = document.createElement('div');
-                    hint.className = 'fixed bottom-8 left-1/2 -translate-x-1/2 text-xs bg-slate-900/90 border border-slate-700 px-4 py-2 rounded-3xl flex items-center gap-x-2 text-slate-400';
-                    hint.innerHTML = `<i class="fa-solid fa-lightbulb"></i> <span>Pro tip: Open this page in two browser tabs for full controller + display experience</span>`;
+                    hint.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-[#ffff00] border-2 border-black text-xs font-bold text-black flex items-center gap-x-2 z-50';
+                    hint.innerHTML = `<span>HOLD A PEN OR PENCIL FOR AUTOMATIC TIP DETECTION</span>`;
                     document.body.appendChild(hint);
-                    
-                    setTimeout(() => hint.remove(), 6500);
+                    setTimeout(() => hint.remove(), 5200);
                 }
-            }, 25000);
+            }, 18000);
         }
 
-        // Boot the app
         window.onload = initializeApp;
-        
-        // Make some functions global for debugging if needed
-        window.PenSync = { exitMode, clearWhiteboard, calibratePen };
+        window.PenSync95 = { exitMode, calibratePen };
     </script>
 </body>
 </html>
