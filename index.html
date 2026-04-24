@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PenSync 95 • Retro Hand & Pen Tracking</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>AR CLEANER 95 • iOS Safari AR</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -12,1226 +14,818 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=VT323&amp;display=swap');
         
-        :root {
-            --win95-bg: #c0c0c0;
-            --win95-title: #000080;
-            --crt-green: #00ff41;
-        }
-        
         body {
             font-family: "MS Sans Serif", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            image-rendering: pixelated;
-        }
-        
-        .retro-font {
-            font-family: "VT323", "Courier New", monospace;
-            font-size: 18px;
-            line-height: 1.1;
+            image-rendering: crisp-edges;
+            background: #000;
         }
         
         .win95-window {
             background: #c0c0c0;
-            border: 2px solid #fff;
+            border: 3px solid #fff;
             border-right-color: #808080;
             border-bottom-color: #808080;
-            box-shadow: 2px 2px 0 #000;
+            box-shadow: 4px 4px 0 #000;
         }
         
         .win95-titlebar {
             background: linear-gradient(#000080, #000040);
-            color: white;
+            color: #fff;
             font-weight: bold;
-            padding: 2px 4px;
+            padding: 3px 6px;
+            font-size: 13px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            user-select: none;
         }
         
         .win95-button {
             background: #c0c0c0;
-            border: 2px solid #fff;
+            border: 3px solid #fff;
             border-right-color: #808080;
             border-bottom-color: #808080;
-            box-shadow: 1px 1px 0 #000;
+            box-shadow: 2px 2px 0 #000;
             font-weight: bold;
-            padding: 4px 12px;
+            padding: 6px 16px;
             cursor: pointer;
-            transition: all 0.05s;
+            font-size: 14px;
         }
         
         .win95-button:active {
-            border: 2px solid #808080;
+            border: 3px solid #808080;
             border-right-color: #fff;
             border-bottom-color: #fff;
             box-shadow: none;
-            transform: translate(1px, 1px);
-        }
-        
-        .win95-button.primary {
-            background: #000080;
-            color: white;
-            border-color: #fff #000 #000 #fff;
+            transform: translate(2px, 2px);
         }
         
         .crt {
             position: relative;
-            background: #0a0a0a;
             overflow: hidden;
+            background: #0a0a0a;
         }
         
         .crt::before {
             content: '';
             position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(
-                rgba(0, 255, 65, 0.06) 50%,
-                transparent 50%
+            inset: 0;
+            background: repeating-linear-gradient(
+                transparent,
+                transparent 3px,
+                rgba(0, 255, 65, 0.08) 3px,
+                rgba(0, 255, 65, 0.08) 6px
             );
-            background-size: 100% 4px;
             pointer-events: none;
             z-index: 2;
-            animation: scanline 4s linear infinite;
+            animation: scan 3.5s linear infinite;
         }
         
-        .crt::after {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: radial-gradient(
-                circle at center,
-                transparent 60%,
-                rgba(0, 0, 0, 0.4) 90%
-            );
-            pointer-events: none;
-            z-index: 1;
-        }
-        
-        @keyframes scanline {
+        @keyframes scan {
             0% { transform: translateY(-100%); }
             100% { transform: translateY(100%); }
         }
         
         .retro-text {
             color: #00ff41;
-            text-shadow: 0 0 5px #00ff41;
+            text-shadow: 0 0 6px #00ff41;
             font-family: "VT323", monospace;
         }
         
-        .pixel-border {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+        .orb {
+            transition: all 0.1s ease;
         }
         
-        .old-monitor {
-            background: #1a1a1a;
-            border: 12px solid #444;
-            border-radius: 8px;
-            box-shadow: 
-                0 0 0 8px #222,
-                0 0 40px rgba(0, 255, 65, 0.3),
-                inset 0 0 80px rgba(0, 0, 0, 0.8);
+        .orb.mapped {
+            box-shadow: 0 0 20px #ffff00, inset 0 0 10px #fff;
         }
         
-        .metric-box {
-            background: #0a0a0a;
-            border: 2px solid #00aa00;
-            color: #00ff41;
+        .win95-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            min-width: 320px;
+        }
+        
+        .pixel-text {
             font-family: "VT323", monospace;
+            font-size: 22px;
+            line-height: 1;
         }
         
-        .pen-tip-glow {
-            box-shadow: 0 0 12px #ffff00,
-                        0 0 24px #ffaa00;
-            animation: pen-pulse 1.5s ease-in-out infinite;
+        .ar-overlay {
+            mix-blend-mode: screen;
         }
         
-        .win95-status {
-            background: #000080;
-            color: #fff;
-            font-size: 13px;
-            padding: 1px 6px;
-        }
-        
-        .retro-canvas {
-            image-rendering: crisp-edges;
-            border: 4px solid #000;
-            box-shadow: 6px 6px 0 #000;
-        }
-        
-        .landmark-dot {
-            filter: drop-shadow(0 0 3px #ff0);
+        .retro-glow {
+            box-shadow: 0 0 15px #00ff41,
+                        0 0 30px #00aa00;
         }
     </style>
 </head>
-<body class="bg-[#a0a0a0] text-black overflow-hidden">
-    <!-- LANDING PAGE - Retro Windows 95 Style -->
-    <div id="landing-page" class="min-h-screen flex items-center justify-center p-8" style="background: linear-gradient(#a0a0a0, #808080);">
-        <div class="max-w-4xl w-full">
-            <!-- Main Window -->
-            <div class="win95-window mx-auto max-w-[820px] shadow-[8px_8px_0_#000]">
-                <!-- Title Bar -->
-                <div class="win95-titlebar px-2 py-1">
-                    <div class="flex items-center gap-x-2">
-                        <div class="w-5 h-5 bg-[#00aa00] flex items-center justify-center">
-                            <i class="fa-solid fa-pen-nib text-black text-sm"></i>
-                        </div>
-                        <span class="font-bold text-sm tracking-widest">PENSYNC 95 - VERSION 1.0</span>
+<body class="bg-black text-white overflow-hidden select-none">
+    <!-- LANDING / TITLE SCREEN -->
+    <div id="landing" class="min-h-screen flex items-center justify-center p-6" style="background: linear-gradient(#1a1a1a, #000);">
+        <div class="win95-window max-w-md w-full">
+            <!-- Title Bar -->
+            <div class="win95-titlebar px-3">
+                <div class="flex items-center gap-x-2">
+                    <div class="w-5 h-5 bg-[#00aa00] flex items-center justify-center border border-black">
+                        <i class="fa-solid fa-vr-cardboard text-black text-xs"></i>
                     </div>
-                    <div class="flex gap-x-1">
-                        <div class="w-4 h-4 bg-[#c0c0c0] border border-black flex items-center justify-center text-[10px] leading-none">_</div>
-                        <div class="w-4 h-4 bg-[#c0c0c0] border border-black flex items-center justify-center text-[10px] leading-none">□</div>
-                        <div class="w-4 h-4 bg-[#c0c0c0] border border-black flex items-center justify-center text-[10px] leading-none">×</div>
+                    <span class="font-bold tracking-[1px]">AR CLEANER 95</span>
+                </div>
+                <div class="flex gap-x-1">
+                    <div class="w-4 h-4 bg-[#c0c0c0] border border-black flex items-center justify-center text-[9px]">_</div>
+                    <div class="w-4 h-4 bg-[#c0c0c0] border border-black flex items-center justify-center text-[9px]">×</div>
+                </div>
+            </div>
+            
+            <div class="p-8 text-center bg-[#c0c0c0] text-black">
+                <div class="mb-6">
+                    <div class="inline-flex items-center justify-center w-24 h-24 bg-[#000080] border-4 border-white mb-4">
+                        <i class="fa-solid fa-hand-sparkles text-[#00ff41] text-6xl"></i>
                     </div>
+                    <h1 class="text-5xl font-bold tracking-[3px] text-[#000080]" style="font-family: 'VT323', monospace;">AR CLEANER 95</h1>
+                    <p class="text-sm mt-1 text-[#333]">iOS Safari AR Edition • 1995</p>
                 </div>
                 
-                <div class="p-6 bg-[#c0c0c0]">
-                    <div class="text-center mb-8">
-                        <div class="inline-flex items-center gap-x-3 mb-4">
-                            <div class="w-20 h-20 bg-[#000080] border-4 border-white flex items-center justify-center">
-                                <i class="fa-solid fa-hand-point-up text-[#00ff41] text-5xl"></i>
-                            </div>
-                            <div>
-                                <h1 class="text-6xl font-bold tracking-[3px] text-[#000080]" style="font-family: 'VT323', monospace;">PENSYNC 95</h1>
-                                <p class="text-[#000080] text-xl -mt-2">HAND &amp; PEN TRACKING SYSTEM</p>
-                            </div>
-                        </div>
-                        
-                        <div class="max-w-md mx-auto">
-                            <p class="text-sm text-[#333] leading-tight">
-                                THE MOST ADVANCED 1995-ERA PEN TIP TRACKING TECHNOLOGY.<br>
-                                DETECTS HAND BY DEFAULT. SWITCHES TO PEN/PENCIL TIP AUTOMATICALLY.
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <!-- Mode Buttons - Big Retro Style -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Touchscreen -->
-                        <button onclick="enterTouchscreenMode()"
-                                class="win95-button group text-left p-5 border-4 border-black hover:bg-[#d0d0d0] active:translate-x-[2px] active:translate-y-[2px]">
-                            <div class="flex items-start gap-x-4">
-                                <div class="w-16 h-16 bg-[#000080] border-4 border-white flex-shrink-0 flex items-center justify-center">
-                                    <i class="fa-solid fa-hand-point-up text-[#00ff41] text-4xl group-active:scale-90 transition"></i>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="font-bold text-2xl text-[#000080]">TOUCHSCREEN</div>
-                                    <div class="text-xs text-[#333] mt-1 leading-tight">FULL SCREEN CAMERA MODE<br>TRACKS PEN TIP OR INDEX FINGER<br>POINT TO DRAW ON WHITEBOARD</div>
-                                    <div class="mt-3 text-[10px] text-[#006600] font-bold">► REQUIRES WEBCAM</div>
-                                </div>
-                            </div>
-                        </button>
-                        
-                        <!-- Whiteboard -->
-                        <button onclick="enterWhiteboardMode()"
-                                class="win95-button group text-left p-5 border-4 border-black hover:bg-[#d0d0d0] active:translate-x-[2px] active:translate-y-[2px]">
-                            <div class="flex items-start gap-x-4">
-                                <div class="w-16 h-16 bg-[#006600] border-4 border-white flex-shrink-0 flex items-center justify-center">
-                                    <i class="fa-solid fa-chalkboard text-white text-4xl group-active:scale-90 transition"></i>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="font-bold text-2xl text-[#000080]">WHITEBOARD</div>
-                                    <div class="text-xs text-[#333] mt-1 leading-tight">LARGE DISPLAY MODE<br>RECEIVES LIVE INPUT FROM<br>TOUCHSCREEN CONTROLLER</div>
-                                    <div class="mt-3 text-[10px] text-[#006600] font-bold">► OPEN IN SECOND TAB</div>
-                                </div>
-                            </div>
-                        </button>
-                    </div>
-                    
-                    <div class="mt-6 text-center">
-                        <div class="inline-block px-4 py-1 bg-[#ffff00] border-2 border-black text-xs font-bold text-black">
-                            OPEN THIS PAGE IN TWO TABS FOR MULTI-USER MODE
-                        </div>
-                    </div>
+                <div class="text-xs leading-tight mb-6 text-[#333]">
+                    CLEAN THE ORBS USING YOUR HAND<br>
+                    IN AUGMENTED REALITY<br>
+                    <span class="text-[#006600]">Optimized for iPhone Safari</span>
                 </div>
                 
-                <div class="win95-status flex items-center justify-between px-3 text-[10px]">
-                    <div>© 1995 PENSOFT CORPORATION • ALL RIGHTS RESERVED</div>
-                    <div class="flex items-center gap-x-1">
-                        <div class="w-2 h-2 bg-[#00ff00] animate-pulse"></div>
-                        <span>READY</span>
-                    </div>
+                <button onclick="startARCleaner()"
+                        class="win95-button w-full py-3 text-lg bg-[#000080] text-white border-[#fff] hover:bg-[#0000aa]">
+                    <i class="fa-solid fa-play mr-2"></i> START AR CLEANER
+                </button>
+                
+                <div class="mt-4 text-[10px] text-[#666]">
+                    Requires camera • Best on iPhone Safari
+                </div>
+            </div>
+            
+            <div class="win95-status flex items-center justify-between px-3 py-1 text-[10px]">
+                <div>© 1995 MICROSOFT • AR EDITION</div>
+                <div class="flex items-center gap-x-1">
+                    <div class="w-2 h-2 bg-[#00ff00] animate-pulse"></div>
+                    <span>READY</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- TOUCHSCREEN MODE - FULL IMMERSIVE RETRO CRT -->
-    <div id="touchscreen-mode" class="hidden fixed inset-0 bg-[#0a0a0a] z-50 flex flex-col">
-        <!-- Top Title Bar -->
-        <div class="win95-titlebar px-3 py-1 text-sm flex-shrink-0">
+    <!-- MAIN AR GAME SCREEN -->
+    <div id="game-screen" class="hidden fixed inset-0 bg-black flex flex-col">
+        <!-- Top Win95 Title Bar -->
+        <div class="win95-titlebar px-3 py-1 flex-shrink-0 z-50">
             <div class="flex items-center justify-between w-full">
                 <div class="flex items-center gap-x-3">
                     <div class="flex items-center gap-x-2">
-                        <i class="fa-solid fa-hand-point-up text-[#00ff41]"></i>
-                        <span class="font-bold tracking-widest">PENSYNC 95 - TOUCHSCREEN CONTROLLER</span>
+                        <i class="fa-solid fa-vr-cardboard text-[#00ff41]"></i>
+                        <span id="phase-title" class="font-bold tracking-widest text-sm">AR CLEANER 95 - MAPPING PHASE</span>
                     </div>
-                    <div id="ts-mode-badge" 
-                         class="px-2 py-0.5 text-[10px] font-bold bg-[#ffff00] text-black border border-black">HAND MODE</div>
+                    <div id="status-badge" 
+                         class="px-2 py-px text-[10px] font-bold bg-[#ffff00] text-black border border-black">MAPPING</div>
                 </div>
                 <div class="flex items-center gap-x-2 text-xs">
-                    <button onclick="exitMode()" class="win95-button text-xs px-3 py-0.5">EXIT</button>
-                    <button onclick="toggleFullscreen()" class="win95-button text-xs px-3 py-0.5">FULLSCREEN</button>
+                    <button onclick="exitGame()" class="win95-button text-xs px-3 py-1">EXIT</button>
                 </div>
             </div>
         </div>
         
-        <div class="flex flex-1 overflow-hidden">
-            <!-- LEFT: FULL CAMERA + TRACKING (Takes most of the screen) -->
-            <div class="flex-1 relative flex flex-col bg-black border-r-4 border-[#333]">
-                <!-- CRT Monitor Frame -->
-                <div class="crt flex-1 relative old-monitor m-4" id="camera-container">
-                    <video id="webcam" class="w-full h-full object-contain" style="transform: scaleX(-1);" autoplay playsinline></video>
-                    <canvas id="overlay-canvas" class="absolute inset-0 w-full h-full pointer-events-none" style="transform: scaleX(-1);"></canvas>
-                    
-                    <!-- Retro HUD Overlays -->
-                    <div class="absolute top-4 left-4 bg-black/80 border border-[#00ff41] px-3 py-1 text-[#00ff41] text-xs font-mono">
-                        <div class="flex items-center gap-x-2">
-                            <div class="w-2 h-2 bg-[#00ff41] animate-pulse"></div>
-                            <span id="tracking-status">SCANNING FOR PEN OR HAND...</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Pen Tip Indicator -->
-                    <div id="pen-indicator" class="hidden absolute w-6 h-6 border-[3px] border-[#ffff00] rounded-full pointer-events-none pen-tip-glow"
-                         style="box-shadow: 0 0 15px #ffff00;">
-                        <div class="absolute inset-0 border border-[#ffff00]/50 rounded-full"></div>
-                    </div>
-                    
-                    <!-- Retro Crosshair -->
-                    <div class="absolute top-1/2 left-1/2 w-8 h-8 border border-[#00ff41] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                         style="box-shadow: 0 0 8px #00ff41;">
-                        <div class="absolute top-1/2 left-0 w-full h-px bg-[#00ff41]"></div>
-                        <div class="absolute left-1/2 top-0 h-full w-px bg-[#00ff41]"></div>
-                    </div>
-                </div>
-                
-                <!-- Bottom Status Bar -->
-                <div class="h-9 bg-[#1a1a1a] border-t-2 border-[#00aa00] flex items-center px-4 text-[#00ff41] text-xs font-mono">
-                    <div class="flex-1 flex items-center gap-x-4">
-                        <span id="ts-status-text">POINTING MODE ACTIVE • INDEX FINGER EXTENDED</span>
-                    </div>
-                    <div class="flex items-center gap-x-3 text-[10px]">
-                        <span>60 FPS</span>
-                        <span class="px-2 py-px bg-[#003300]">v1.0.95</span>
-                    </div>
+        <!-- AR Camera View -->
+        <div class="flex-1 relative overflow-hidden" id="ar-container">
+            <video id="ar-video" class="absolute inset-0 w-full h-full object-cover" style="transform: scaleX(-1);" autoplay playsinline muted></video>
+            
+            <!-- Main Overlay Canvas (Orbs + Lines) -->
+            <canvas id="game-canvas" class="absolute inset-0 w-full h-full pointer-events-none" style="transform: scaleX(-1);"></canvas>
+            
+            <!-- Crosshair / Center Marker -->
+            <div class="absolute top-1/2 left-1/2 w-6 h-6 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-40">
+                <div class="w-full h-full border-2 border-[#00ff41] rounded-full flex items-center justify-center">
+                    <div class="w-1.5 h-1.5 bg-[#00ff41] rounded-full"></div>
                 </div>
             </div>
             
-            <!-- RIGHT: RETRO CONTROL PANEL (Compact) -->
-            <div class="w-80 bg-[#c0c0c0] border-l-4 border-[#808080] flex flex-col">
-                <!-- Metrics Window -->
-                <div class="win95-window m-3 flex-shrink-0">
-                    <div class="win95-titlebar px-2 py-px text-xs">
-                        <span>PEN / HAND METRICS</span>
-                    </div>
-                    <div class="p-3 text-xs space-y-2 font-mono">
-                        <div class="flex justify-between">
-                            <span class="text-[#333]">POSITION:</span>
-                            <span id="metric-pos" class="text-[#006600] font-bold">X: --- Y: ---</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-[#333]">DISTANCE:</span>
-                            <span id="metric-depth" class="text-[#006600] font-bold">---</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-[#333]">TILT ANGLE:</span>
-                            <span id="metric-angle" class="text-[#006600] font-bold">---°</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-[#333]">CONFIDENCE:</span>
-                            <span id="confidence" class="text-[#006600] font-bold">---%</span>
-                        </div>
-                        <div id="pen-status" class="text-center py-1 text-[10px] font-bold bg-[#ffff00] text-black hidden">
-                            PEN DETECTED — USING TIP
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Tool Panel -->
-                <div class="win95-window mx-3 flex-1 flex flex-col">
-                    <div class="win95-titlebar px-2 py-px text-xs">
-                        <span>DRAWING TOOLS</span>
-                    </div>
-                    
-                    <div class="p-3 flex-1 flex flex-col">
-                        <!-- Colors -->
-                        <div class="mb-3">
-                            <div class="text-xs text-[#333] mb-1">COLORS</div>
-                            <div class="grid grid-cols-6 gap-1" id="color-palette">
-                                <!-- Populated by JS -->
-                            </div>
-                        </div>
-                        
-                        <!-- Controls -->
-                        <div class="space-y-3 flex-1">
-                            <div>
-                                <div class="flex justify-between items-center mb-1">
-                                    <span class="text-xs text-[#333]">BRUSH SIZE</span>
-                                    <span id="size-value" class="font-mono text-xs bg-black text-[#00ff41] px-1">8</span>
-                                </div>
-                                <input type="range" id="brush-size" min="3" max="28" step="1" value="8" 
-                                       class="w-full accent-[#000080]" oninput="updateBrushSize()">
-                            </div>
-                            
-                            <div class="flex gap-x-2">
-                                <button id="eraser-btn" onclick="toggleEraser()"
-                                        class="win95-button flex-1 flex items-center justify-center gap-x-2 text-xs py-1">
-                                    <i class="fa-solid fa-eraser"></i>
-                                    <span id="eraser-text">ERASER</span>
-                                </button>
-                                
-                                <button onclick="clearPreview()" 
-                                        class="win95-button flex-1 flex items-center justify-center gap-x-2 text-xs py-1">
-                                    <i class="fa-solid fa-trash"></i>
-                                    <span>CLEAR</span>
-                                </button>
-                            </div>
-                            
-                            <button onclick="connectToWhiteboard()" id="connect-btn"
-                                    class="win95-button w-full py-2 text-sm flex items-center justify-center gap-x-2 bg-[#006600] text-white border-[#00aa00]">
-                                <i class="fa-solid fa-plug"></i>
-                                <span>CONNECT TO WHITEBOARD</span>
-                            </button>
-                            
-                            <button onclick="calibratePen()" 
-                                    class="win95-button w-full py-1 text-xs flex items-center justify-center gap-x-2">
-                                <i class="fa-solid fa-sync"></i>
-                                <span>CALIBRATE PEN TIP</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Connection Status -->
-                <div class="mx-3 mb-3 px-3 py-2 bg-black text-[#00ff41] text-xs font-mono border-2 border-[#00aa00]">
-                    <div id="connection-status" class="flex items-center gap-x-2">
-                        <i class="fa-solid fa-wifi"></i>
-                        <span>NOT CONNECTED</span>
-                    </div>
-                </div>
+            <!-- Retro HUD Info -->
+            <div class="absolute top-4 left-4 bg-black/80 border border-[#00ff41] px-3 py-1.5 text-[#00ff41] text-xs font-mono z-50">
+                <div id="orb-count">ORBS MAPPED: <span class="font-bold">0/8</span></div>
+                <div id="hand-status" class="text-[10px] mt-0.5">HAND TRACKING: OFF</div>
+            </div>
+            
+            <!-- Right Info Panel -->
+            <div class="absolute top-4 right-4 bg-black/80 border border-[#00ff41] px-3 py-2 text-[#00ff41] text-xs font-mono z-50 hidden" id="right-panel">
+                <div>DEVICE TILT ACTIVE</div>
+                <div id="tilt-info" class="text-[10px]">X: 0° Y: 0°</div>
             </div>
         </div>
         
-        <!-- Preview Strip at Bottom -->
-        <div class="h-28 bg-[#1a1a1a] border-t-4 border-[#333] p-2 flex-shrink-0">
-            <div class="flex items-center gap-x-3 h-full">
-                <div class="text-[#00ff41] text-xs font-mono px-2">PREVIEW</div>
-                <canvas id="preview-canvas" width="420" height="90" class="retro-canvas bg-white border border-[#666]"></canvas>
-                <div class="flex-1 text-[10px] text-[#666] font-mono leading-tight">
-                    LIVE FEEDBACK<br>
-                    DRAWING ONLY WHEN<br>
-                    POINTING GESTURE
-                </div>
+        <!-- Bottom Center Button -->
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-50">
+            <button id="mapping-btn"
+                    onclick="toggleMappingLaser()"
+                    class="win95-button px-8 py-3 text-base flex items-center gap-x-3 shadow-[0_0_20px_#00ff41] bg-[#006600] text-white border-[#00ff00]">
+                <i class="fa-solid fa-link text-xl"></i>
+                <span id="btn-text">START MAPPING LASER</span>
+            </button>
+        </div>
+        
+        <!-- Phase Instructions -->
+        <div class="absolute bottom-24 left-1/2 -translate-x-1/2 text-center z-40">
+            <div id="instructions" class="text-[#00ff41] text-xs font-mono bg-black/70 px-4 py-1 border border-[#00aa00]">
+                PRESS BUTTON • MOVE PHONE TO DRAW LINES • MAP ALL ORBS
+            </div>
+        </div>
+        
+        <!-- Collection Mode Controls (hidden by default) -->
+        <div id="collection-controls" class="hidden absolute bottom-8 left-1/2 -translate-x-1/2 z-50">
+            <div class="win95-window px-4 py-2 text-center">
+                <div class="text-[#00ff41] text-xs font-mono mb-1">COLLECTION MODE ACTIVE</div>
+                <div class="text-[10px] text-white">USE RIGHT HAND TO COLLECT ORBS</div>
             </div>
         </div>
     </div>
 
-    <!-- WHITEBOARD MODE -->
-    <div id="whiteboard-mode" class="hidden min-h-screen bg-[#c0c0c0] flex flex-col">
-        <!-- Title Bar -->
-        <div class="win95-titlebar px-3 py-1 flex-shrink-0">
-            <div class="flex items-center justify-between w-full">
-                <div class="flex items-center gap-x-3">
-                    <div class="flex items-center gap-x-2">
-                        <i class="fa-solid fa-chalkboard text-white"></i>
-                        <span class="font-bold tracking-widest">PENSYNC 95 - WHITEBOARD DISPLAY</span>
-                    </div>
-                    <div id="wb-status" class="px-2 py-0.5 text-xs bg-[#ffff00] text-black border border-black font-bold">WAITING FOR CONTROLLER...</div>
-                </div>
-                <button onclick="exitMode()" class="win95-button text-xs px-4 py-0.5">EXIT</button>
-            </div>
+    <!-- WIN DIALOG -->
+    <div id="win-dialog" class="hidden win95-window win95-dialog">
+        <div class="win95-titlebar px-3">
+            <span class="font-bold">MISSION COMPLETE</span>
         </div>
-        
-        <div class="flex-1 flex items-center justify-center p-6 relative" id="whiteboard-container">
-            <div class="relative">
-                <canvas id="whiteboard-canvas" width="1280" height="800" 
-                        class="retro-canvas bg-white cursor-crosshair"></canvas>
-                
-                <!-- Remote Pointer -->
-                <div id="remote-pointer" class="hidden absolute w-7 h-7 border-[3px] border-[#ff0000] rounded-full pointer-events-none"
-                     style="box-shadow: 0 0 12px #ff0000; transition: left 0.04s linear, top 0.04s linear;">
-                    <div class="absolute top-1/2 left-1/2 w-2 h-px bg-[#ff0000] -translate-x-1/2 -translate-y-1/2" id="angle-indicator"></div>
-                </div>
-                
-                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs text-[#333] font-mono flex items-center gap-x-2">
-                    <span>LOCAL MOUSE DRAWING ENABLED • REMOTE INPUT ACTIVE</span>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Bottom Toolbar -->
-        <div class="h-14 bg-[#c0c0c0] border-t-4 border-[#808080] px-4 flex items-center justify-between flex-shrink-0">
-            <div class="flex items-center gap-x-3">
-                <div id="wb-color-palette" class="flex gap-x-1"></div>
-                
-                <div class="h-8 w-px bg-[#808080]"></div>
-                
-                <button onclick="wbToggleEraser()" id="wb-eraser-btn"
-                        class="win95-button flex items-center gap-x-2 px-4 py-1 text-sm">
-                    <i class="fa-solid fa-eraser"></i>
-                    <span>ERASER</span>
-                </button>
-                
-                <button onclick="clearWhiteboard()" 
-                        class="win95-button flex items-center gap-x-2 px-4 py-1 text-sm">
-                    <i class="fa-solid fa-trash"></i>
-                    <span>CLEAR ALL</span>
-                </button>
-            </div>
+        <div class="p-6 bg-[#c0c0c0] text-black text-center">
+            <div class="text-4xl mb-3">🎉</div>
+            <div class="text-2xl font-bold text-[#000080]">YOU WIN!</div>
+            <div class="text-sm mt-2">ALL ORBS SUCCESSFULLY CLEANED</div>
+            <div class="mt-4 text-xs text-[#333]">1995 AR CLEANER CHAMPION</div>
             
-            <div id="remote-info" class="text-xs font-mono bg-black text-[#00ff41] px-3 py-1 border border-[#00aa00]">
-                NO CONTROLLER CONNECTED
+            <div class="mt-6 flex gap-x-3 justify-center">
+                <button onclick="restartGame()" class="win95-button px-6 py-2">PLAY AGAIN</button>
+                <button onclick="exitGame()" class="win95-button px-6 py-2">EXIT</button>
             </div>
         </div>
     </div>
 
     <script>
-        // Tailwind + Retro setup
-        function initTailwind() {
-            // Already styled with custom CSS
-        }
-
-        // Globals
-        let currentMode = null;
-        let channel = null;
-        let isConnected = false;
-        
-        // Whiteboard
-        let wbCanvas, wbCtx;
-        let isDrawing = false;
-        let lastX = 0, lastY = 0;
-        let currentColor = '#000000';
-        let currentSize = 8;
-        let isErasing = false;
-        let remoteLastX = null, remoteLastY = null;
-        
-        // Touchscreen
-        let tsCanvas, tsCtx;
-        let previewCanvas, previewCtx;
+        // ==================== GLOBALS ====================
+        let video, canvas, ctx;
         let hands, camera;
-        let videoElement, overlayCanvas, overlayCtx;
-        let positionHistory = [];
-        let lastSentTime = 0;
-        let isEraserActive = false;
-        let tsCurrentColor = '#000000';
-        let tsCurrentSize = 8;
-        let penDetected = false;
-        let analysisCanvas, analysisCtx; // For pen tip detection
+        let orbs = [];
+        let lines = []; // [{x1, y1, x2, y2}]
+        let mappingActive = false;
+        let phase = 'mapping'; // 'mapping' or 'collection'
+        let mappedCount = 0;
+        let totalOrbs = 8;
+        let pointerX = 0, pointerY = 0;
+        let lastPointerX = 0, lastPointerY = 0;
+        let deviceBeta = 0, deviceGamma = 0;
+        let rightHandDetected = false;
+        let collectedCount = 0;
         
-        const HAND_CONNECTIONS = [
-            [0,1],[1,2],[2,3],[3,4],
-            [0,5],[5,6],[6,7],[7,8],
-            [0,9],[9,10],[10,11],[11,12],
-            [0,13],[13,14],[14,15],[15,16],
-            [0,17],[17,18],[18,19],[19,20]
-        ];
-
-        // ==================== MODE SWITCHING ====================
-        function enterTouchscreenMode() {
-            document.getElementById('landing-page').classList.add('hidden');
-            const tsMode = document.getElementById('touchscreen-mode');
-            tsMode.classList.remove('hidden');
-            currentMode = 'touchscreen';
-            initTouchscreenMode();
-        }
-
-        function enterWhiteboardMode() {
-            document.getElementById('landing-page').classList.add('hidden');
-            document.getElementById('whiteboard-mode').classList.remove('hidden');
-            currentMode = 'whiteboard';
-            initWhiteboardMode();
-        }
-
-        function exitMode() {
-            if (currentMode === 'touchscreen') {
-                if (camera) camera.stop();
-                if (hands) hands.close();
-                if (channel) channel.close();
-            } else if (currentMode === 'whiteboard') {
-                if (channel) channel.close();
-            }
-            
-            document.getElementById('touchscreen-mode').classList.add('hidden');
-            document.getElementById('whiteboard-mode').classList.add('hidden');
-            document.getElementById('landing-page').classList.remove('hidden');
-            currentMode = null;
-            isConnected = false;
-        }
-
-        function toggleFullscreen() {
-            const elem = document.getElementById('touchscreen-mode');
-            if (!document.fullscreenElement) {
-                elem.requestFullscreen().catch(() => {});
+        // ==================== DEVICE ORIENTATION (for AR feel) ====================
+        function initDeviceOrientation() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && 
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                // iOS 13+ permission
+                DeviceOrientationEvent.requestPermission()
+                    .then(permission => {
+                        if (permission === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                            document.getElementById('right-panel').classList.remove('hidden');
+                        }
+                    })
+                    .catch(() => {});
             } else {
-                document.exitFullscreen();
+                window.addEventListener('deviceorientation', handleOrientation);
+                document.getElementById('right-panel').classList.remove('hidden');
             }
         }
-
-        // ==================== WHITEBOARD MODE ====================
-        function initWhiteboardMode() {
-            wbCanvas = document.getElementById('whiteboard-canvas');
-            wbCtx = wbCanvas.getContext('2d');
-            wbCtx.fillStyle = '#ffffff';
-            wbCtx.fillRect(0, 0, wbCanvas.width, wbCanvas.height);
+        
+        function handleOrientation(event) {
+            if (!event) return;
+            deviceBeta = event.beta || 0;
+            deviceGamma = event.gamma || 0;
             
-            wbCanvas.addEventListener('mousedown', startDrawing);
-            wbCanvas.addEventListener('mousemove', draw);
-            wbCanvas.addEventListener('mouseup', stopDrawing);
-            wbCanvas.addEventListener('mouseleave', stopDrawing);
+            const tiltEl = document.getElementById('tilt-info');
+            if (tiltEl) tiltEl.innerText = `X: ${deviceGamma.toFixed(0)}° Y: ${deviceBeta.toFixed(0)}°`;
             
-            wbCanvas.addEventListener('touchstart', handleTouchStart);
-            wbCanvas.addEventListener('touchmove', handleTouchMove);
-            wbCanvas.addEventListener('touchend', stopDrawing);
-            
-            initWBColorPalette();
-            initWhiteboardChannel();
-            
-            document.getElementById('remote-pointer').classList.add('hidden');
-            showRetroToast("WHITEBOARD READY. CONNECT TOUCHSCREEN CONTROLLER.");
+            // Update pointer position based on tilt (for mapping laser)
+            if (phase === 'mapping' && mappingActive) {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                
+                pointerX = centerX + (deviceGamma * 2.8);
+                pointerY = centerY + (deviceBeta * 1.8);
+                
+                // Clamp to screen
+                pointerX = Math.max(50, Math.min(canvas.width - 50, pointerX));
+                pointerY = Math.max(50, Math.min(canvas.height - 50, pointerY));
+            }
         }
-
-        function initWBColorPalette() {
-            const container = document.getElementById('wb-color-palette');
-            container.innerHTML = '';
-            const colors = ['#000000', '#ff0000', '#0000ff', '#00aa00', '#aa00aa', '#ffaa00'];
+        
+        // ==================== ORB CREATION ====================
+        function createOrbs() {
+            orbs = [];
+            const w = canvas ? canvas.width : 800;
+            const h = canvas ? canvas.height : 600;
             
-            colors.forEach(color => {
-                const btn = document.createElement('div');
-                btn.className = `w-6 h-6 border-2 border-black cursor-pointer ${color === currentColor ? 'ring-2 ring-offset-2 ring-offset-[#c0c0c0] ring-white' : ''}`;
-                btn.style.backgroundColor = color;
-                btn.onclick = () => {
-                    currentColor = color;
-                    isErasing = false;
-                    updateWBToolUI();
-                    if (channel && isConnected) {
-                        channel.postMessage({ type: 'tool', color, erase: false, size: currentSize });
-                    }
-                };
-                container.appendChild(btn);
+            // Cluster them somewhat close together (center-right area)
+            const baseX = w * 0.55;
+            const baseY = h * 0.45;
+            
+            for (let i = 0; i < totalOrbs; i++) {
+                const angle = (i / totalOrbs) * Math.PI * 2;
+                const radius = 55 + Math.random() * 35;
+                
+                orbs.push({
+                    x: baseX + Math.cos(angle) * radius + (Math.random() - 0.5) * 40,
+                    y: baseY + Math.sin(angle) * radius + (Math.random() - 0.5) * 30,
+                    radius: 18 + Math.random() * 6,
+                    mapped: false,
+                    collected: false,
+                    color: ['#00ff41', '#ffff00', '#00aaff', '#ff00aa'][i % 4]
+                });
+            }
+        }
+        
+        // ==================== DRAWING ====================
+        function draw() {
+            if (!ctx || !canvas) return;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw orbs
+            orbs.forEach((orb, index) => {
+                if (orb.collected) return;
+                
+                const alpha = orb.mapped ? 1 : 0.85;
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                
+                // Outer glow
+                ctx.shadowColor = orb.color;
+                ctx.shadowBlur = orb.mapped ? 25 : 15;
+                
+                // Main orb
+                ctx.beginPath();
+                ctx.arc(orb.x, orb.y, orb.radius, 0, Math.PI * 2);
+                ctx.fillStyle = orb.color;
+                ctx.fill();
+                
+                // Inner highlight (retro 3D look)
+                ctx.shadowBlur = 0;
+                ctx.beginPath();
+                ctx.arc(orb.x - 5, orb.y - 5, orb.radius * 0.45, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                ctx.fill();
+                
+                // Border
+                ctx.strokeStyle = orb.mapped ? '#ffff00' : '#ffffff';
+                ctx.lineWidth = orb.mapped ? 3 : 2;
+                ctx.stroke();
+                
+                ctx.restore();
             });
+            
+            // Draw mapping lines
+            ctx.strokeStyle = '#00ff41';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = '#00ff41';
+            ctx.shadowBlur = 8;
+            
+            lines.forEach(line => {
+                ctx.beginPath();
+                ctx.moveTo(line.x1, line.y1);
+                ctx.lineTo(line.x2, line.y2);
+                ctx.stroke();
+            });
+            
+            // Current active line (laser)
+            if (mappingActive && phase === 'mapping') {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                
+                ctx.strokeStyle = '#ffff00';
+                ctx.lineWidth = 4;
+                ctx.shadowBlur = 15;
+                
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(pointerX, pointerY);
+                ctx.stroke();
+                
+                // Laser dot at pointer
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(pointerX, pointerY, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            ctx.shadowBlur = 0;
         }
-
-        function updateWBToolUI() {
-            const eraserBtn = document.getElementById('wb-eraser-btn');
-            if (isErasing) {
-                eraserBtn.style.background = '#ffaaaa';
-                eraserBtn.style.borderColor = '#ff0000';
+        
+        // ==================== MAPPING LOGIC ====================
+        function toggleMappingLaser() {
+            const btn = document.getElementById('mapping-btn');
+            const btnText = document.getElementById('btn-text');
+            
+            if (!mappingActive) {
+                // Start new line
+                mappingActive = true;
+                btn.style.background = '#aa0000';
+                btn.style.borderColor = '#ff0000';
+                btnText.innerText = 'STOP LASER & SAVE LINE';
+                
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                pointerX = centerX + (deviceGamma * 2.5);
+                pointerY = centerY + (deviceBeta * 1.8);
+                
+                lastPointerX = pointerX;
+                lastPointerY = pointerY;
+                
+                document.getElementById('instructions').innerText = 'MOVE PHONE TO SWEEP LASER • ORBS NEAR LINE GET MAPPED';
             } else {
-                eraserBtn.style.background = '';
-                eraserBtn.style.borderColor = '';
-            }
-        }
-
-        function wbToggleEraser() {
-            isErasing = !isErasing;
-            updateWBToolUI();
-            if (channel && isConnected) {
-                channel.postMessage({ type: 'tool', color: currentColor, erase: isErasing, size: currentSize });
-            }
-        }
-
-        function clearWhiteboard() {
-            if (!wbCtx) return;
-            wbCtx.fillStyle = '#ffffff';
-            wbCtx.fillRect(0, 0, wbCanvas.width, wbCanvas.height);
-            if (channel && isConnected) channel.postMessage({ type: 'clear' });
-        }
-
-        function startDrawing(e) {
-            isDrawing = true;
-            const rect = wbCanvas.getBoundingClientRect();
-            lastX = e.clientX - rect.left;
-            lastY = e.clientY - rect.top;
-        }
-
-        function draw(e) {
-            if (!isDrawing || !wbCtx) return;
-            const rect = wbCanvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            wbCtx.strokeStyle = isErasing ? '#ffffff' : currentColor;
-            wbCtx.lineWidth = currentSize;
-            wbCtx.lineJoin = 'round';
-            wbCtx.lineCap = 'round';
-            
-            wbCtx.beginPath();
-            wbCtx.moveTo(lastX, lastY);
-            wbCtx.lineTo(x, y);
-            wbCtx.stroke();
-            lastX = x; lastY = y;
-        }
-
-        function stopDrawing() { isDrawing = false; }
-
-        function handleTouchStart(e) {
-            e.preventDefault();
-            isDrawing = true;
-            const rect = wbCanvas.getBoundingClientRect();
-            lastX = e.touches[0].clientX - rect.left;
-            lastY = e.touches[0].clientY - rect.top;
-        }
-
-        function handleTouchMove(e) {
-            e.preventDefault();
-            if (!isDrawing) return;
-            const rect = wbCanvas.getBoundingClientRect();
-            const x = e.touches[0].clientX - rect.left;
-            const y = e.touches[0].clientY - rect.top;
-            
-            wbCtx.strokeStyle = isErasing ? '#ffffff' : currentColor;
-            wbCtx.lineWidth = currentSize;
-            wbCtx.lineJoin = 'round';
-            wbCtx.lineCap = 'round';
-            
-            wbCtx.beginPath();
-            wbCtx.moveTo(lastX, lastY);
-            wbCtx.lineTo(x, y);
-            wbCtx.stroke();
-            lastX = x; lastY = y;
-        }
-
-        function initWhiteboardChannel() {
-            channel = new BroadcastChannel('pen-track-whiteboard-v1');
-            channel.onmessage = (event) => {
-                const data = event.data;
-                if (data.type === 'join' && data.role === 'controller') {
-                    isConnected = true;
-                    document.getElementById('wb-status').innerHTML = 'CONTROLLER CONNECTED';
-                    document.getElementById('remote-info').innerHTML = 'TOUCHSCREEN CONTROLLER LIVE';
-                    showRetroToast("CONTROLLER CONNECTED! PEN INPUT ACTIVE.");
-                } else if (data.type === 'update') {
-                    handleRemoteUpdate(data);
-                } else if (data.type === 'tool') {
-                    currentColor = data.color || currentColor;
-                    isErasing = data.erase || false;
-                    currentSize = data.size || currentSize;
-                    updateWBToolUI();
-                } else if (data.type === 'clear') {
-                    wbCtx.fillStyle = '#ffffff';
-                    wbCtx.fillRect(0, 0, wbCanvas.width, wbCanvas.height);
+                // Finish current line
+                mappingActive = false;
+                btn.style.background = '#006600';
+                btn.style.borderColor = '#00ff00';
+                btnText.innerText = 'START MAPPING LASER';
+                
+                // Save the line
+                if (lastPointerX && lastPointerY) {
+                    lines.push({
+                        x1: canvas.width / 2,
+                        y1: canvas.height / 2,
+                        x2: pointerX,
+                        y2: pointerY
+                    });
                 }
-            };
-            setTimeout(() => {
-                if (channel) channel.postMessage({ type: 'whiteboard-ready' });
-            }, 600);
+                
+                // Check which orbs are now mapped
+                checkMappedOrbs();
+                
+                document.getElementById('instructions').innerText = 'PRESS AGAIN TO DRAW MORE LINES OR START COLLECTION';
+                
+                // If all mapped, offer to go to collection
+                if (mappedCount >= totalOrbs) {
+                    setTimeout(() => {
+                        if (confirm("All orbs mapped! Start collection phase with hand tracking?")) {
+                            startCollectionPhase();
+                        }
+                    }, 800);
+                }
+            }
         }
-
-        function handleRemoteUpdate(data) {
-            if (!wbCanvas || !wbCtx) return;
+        
+        function checkMappedOrbs() {
+            let newlyMapped = 0;
             
-            const ptr = document.getElementById('remote-pointer');
-            const containerRect = document.getElementById('whiteboard-container').getBoundingClientRect();
-            const canvasRect = wbCanvas.getBoundingClientRect();
-            
-            const pointerLeft = ((data.x / wbCanvas.width) * canvasRect.width) + (canvasRect.left - containerRect.left);
-            const pointerTop = ((data.y / wbCanvas.height) * canvasRect.height) + (canvasRect.top - containerRect.top);
-            
-            ptr.style.left = `${pointerLeft}px`;
-            ptr.style.top = `${pointerTop}px`;
-            ptr.style.display = 'block';
-            ptr.classList.remove('hidden');
-            
-            // Rotate angle indicator
-            const angleEl = document.getElementById('angle-indicator');
-            if (angleEl) angleEl.style.transform = `rotate(${data.angle || 0}deg)`;
-            
-            if (data.drawing) {
-                if (remoteLastX !== null && remoteLastY !== null) {
-                    wbCtx.strokeStyle = data.erase ? '#ffffff' : (data.color || currentColor);
-                    wbCtx.lineWidth = data.size || currentSize;
-                    wbCtx.lineJoin = 'round';
-                    wbCtx.lineCap = 'round';
+            orbs.forEach(orb => {
+                if (orb.mapped || orb.collected) return;
+                
+                // Check if any line comes close to this orb
+                let isMapped = false;
+                
+                // Check against all saved lines
+                lines.forEach(line => {
+                    const dist = distanceToLineSegment(
+                        orb.x, orb.y,
+                        line.x1, line.y1,
+                        line.x2, line.y2
+                    );
                     
-                    wbCtx.beginPath();
-                    wbCtx.moveTo(remoteLastX, remoteLastY);
-                    wbCtx.lineTo(data.x, data.y);
-                    wbCtx.stroke();
-                }
-                remoteLastX = data.x;
-                remoteLastY = data.y;
-            } else {
-                remoteLastX = null;
-                remoteLastY = null;
-            }
-        }
-
-        // ==================== TOUCHSCREEN MODE ====================
-        function initTouchscreenMode() {
-            videoElement = document.getElementById('webcam');
-            overlayCanvas = document.getElementById('overlay-canvas');
-            overlayCtx = overlayCanvas.getContext('2d');
-            previewCanvas = document.getElementById('preview-canvas');
-            previewCtx = previewCanvas.getContext('2d');
-            
-            previewCtx.fillStyle = '#ffffff';
-            previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
-            
-            // Hidden canvas for pen tip analysis
-            analysisCanvas = document.createElement('canvas');
-            analysisCanvas.width = 640;
-            analysisCanvas.height = 480;
-            analysisCtx = analysisCanvas.getContext('2d', { willReadFrequently: true });
-            
-            initTSColorPalette();
-            
-            const sizeSlider = document.getElementById('brush-size');
-            sizeSlider.oninput = updateBrushSize;
-            document.getElementById('size-value').innerText = tsCurrentSize;
-            
-            initMediaPipe();
-            initTouchscreenChannel();
-            
-            setTimeout(() => {
-                document.getElementById('tracking-status').innerText = 'POINT INDEX FINGER OR HOLD PEN';
-            }, 1400);
-        }
-
-        function initTSColorPalette() {
-            const container = document.getElementById('color-palette');
-            container.innerHTML = '';
-            const colors = ['#000000', '#ff0000', '#0000ff', '#00aa00', '#aa00aa', '#ffaa00'];
-            
-            colors.forEach(color => {
-                const btn = document.createElement('div');
-                btn.className = `w-7 h-7 border-2 border-black cursor-pointer ${color === tsCurrentColor ? 'ring-2 ring-offset-2 ring-offset-[#c0c0c0] ring-white' : ''}`;
-                btn.style.backgroundColor = color;
-                btn.onclick = () => {
-                    tsCurrentColor = color;
-                    isEraserActive = false;
-                    document.getElementById('eraser-btn').classList.remove('!bg-red-200');
-                    updateTSColorUI();
-                    if (channel && isConnected) {
-                        channel.postMessage({ type: 'tool', color: tsCurrentColor, erase: false, size: tsCurrentSize });
+                    if (dist < orb.radius + 28) {
+                        isMapped = true;
                     }
-                };
-                container.appendChild(btn);
-            });
-        }
-
-        function updateTSColorUI() {
-            const container = document.getElementById('color-palette');
-            Array.from(container.children).forEach((child, i) => {
-                const colors = ['#000000', '#ff0000', '#0000ff', '#00aa00', '#aa00aa', '#ffaa00'];
-                if (colors[i] === tsCurrentColor && !isEraserActive) {
-                    child.classList.add('ring-2', 'ring-offset-2', 'ring-offset-[#c0c0c0]', 'ring-white');
-                } else {
-                    child.classList.remove('ring-2', 'ring-offset-2', 'ring-offset-[#c0c0c0]', 'ring-white');
+                });
+                
+                // Also check current active laser
+                if (mappingActive) {
+                    const centerX = canvas.width / 2;
+                    const centerY = canvas.height / 2;
+                    const dist = distanceToLineSegment(
+                        orb.x, orb.y,
+                        centerX, centerY,
+                        pointerX, pointerY
+                    );
+                    if (dist < orb.radius + 28) isMapped = true;
+                }
+                
+                if (isMapped) {
+                    orb.mapped = true;
+                    newlyMapped++;
+                    mappedCount++;
                 }
             });
-        }
-
-        function updateBrushSize() {
-            const slider = document.getElementById('brush-size');
-            tsCurrentSize = parseInt(slider.value);
-            document.getElementById('size-value').innerText = tsCurrentSize;
-            if (channel && isConnected) {
-                channel.postMessage({ type: 'tool', color: tsCurrentColor, erase: isEraserActive, size: tsCurrentSize });
+            
+            updateOrbCount();
+            
+            if (newlyMapped > 0) {
+                // Retro flash effect
+                const flash = document.createElement('div');
+                flash.className = 'fixed inset-0 bg-[#ffff00] opacity-30 pointer-events-none z-40';
+                document.body.appendChild(flash);
+                setTimeout(() => flash.remove(), 180);
             }
         }
-
-        function toggleEraser() {
-            isEraserActive = !isEraserActive;
-            const btn = document.getElementById('eraser-btn');
-            const text = document.getElementById('eraser-text');
+        
+        function distanceToLineSegment(px, py, x1, y1, x2, y2) {
+            const A = px - x1;
+            const B = py - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
             
-            if (isEraserActive) {
-                btn.classList.add('!bg-red-200');
-                text.innerText = 'DRAWING';
+            const dot = A * C + B * D;
+            const lenSq = C * C + D * D;
+            let param = -1;
+            
+            if (lenSq !== 0) param = dot / lenSq;
+            
+            let xx, yy;
+            
+            if (param < 0) {
+                xx = x1; yy = y1;
+            } else if (param > 1) {
+                xx = x2; yy = y2;
             } else {
-                btn.classList.remove('!bg-red-200');
-                text.innerText = 'ERASER';
+                xx = x1 + param * C;
+                yy = y1 + param * D;
             }
             
-            if (channel && isConnected) {
-                channel.postMessage({ type: 'tool', color: tsCurrentColor, erase: isEraserActive, size: tsCurrentSize });
-            }
+            const dx = px - xx;
+            const dy = py - yy;
+            return Math.sqrt(dx * dx + dy * dy);
         }
-
-        function initMediaPipe() {
+        
+        function updateOrbCount() {
+            const el = document.getElementById('orb-count');
+            if (el) el.innerHTML = `ORBS MAPPED: <span class="font-bold">${mappedCount}/${totalOrbs}</span>`;
+        }
+        
+        // ==================== HAND TRACKING (Collection Phase) ====================
+        function initHandTracking() {
             hands = new Hands({
                 locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
             });
             
             hands.setOptions({
-                maxNumHands: 1,
+                maxNumHands: 2,
                 modelComplexity: 1,
-                minDetectionConfidence: 0.72,
-                minTrackingConfidence: 0.72
+                minDetectionConfidence: 0.7,
+                minTrackingConfidence: 0.7
             });
             
             hands.onResults(onHandResults);
             
-            camera = new Camera(videoElement, {
+            camera = new Camera(video, {
                 onFrame: async () => {
-                    if (hands) await hands.send({ image: videoElement });
-                },
-                width: 640,
-                height: 480
-            });
-            
-            camera.start().then(() => {
-                setTimeout(() => {
-                    overlayCanvas.width = videoElement.videoWidth || 640;
-                    overlayCanvas.height = videoElement.videoHeight || 480;
-                }, 700);
-            }).catch(err => {
-                document.getElementById('tracking-status').innerText = 'CAMERA ERROR - ALLOW ACCESS';
-            });
-        }
-
-        // IMPROVED: Pointing pose detection (index out, others tucked)
-        function isPointingPose(landmarks) {
-            const idxTip = landmarks[8];
-            const idxPip = landmarks[6];
-            const idxMcp = landmarks[5];
-            
-            const midTip = landmarks[12];
-            const ringTip = landmarks[16];
-            const pinkyTip = landmarks[20];
-            const thumbTip = landmarks[4];
-            
-            // Index must be clearly extended
-            const indexExtended = (idxTip.y < idxPip.y - 0.018) && 
-                                  (Math.hypot(idxTip.x - idxMcp.x, idxTip.y - idxMcp.y) > 0.09);
-            
-            // Other fingers curled (tips close to or below their PIP joints)
-            const middleCurled = midTip.y > landmarks[10].y - 0.015;
-            const ringCurled = ringTip.y > landmarks[14].y - 0.015;
-            const pinkyCurled = pinkyTip.y > landmarks[18].y - 0.015;
-            const thumbCurled = Math.hypot(thumbTip.x - landmarks[2].x, thumbTip.y - landmarks[2].y) < 0.12;
-            
-            return indexExtended && middleCurled && ringCurled && pinkyCurled && thumbCurled;
-        }
-
-        // IMPROVED PEN TIP DETECTION (long object in hand)
-        function detectPenTip(landmarks, videoFrame) {
-            if (!analysisCtx || !videoFrame) return null;
-            
-            const tip = landmarks[8];
-            const pip = landmarks[6];
-            const mcp = landmarks[5];
-            
-            // Direction vector from MCP to TIP (finger direction)
-            const dx = tip.x - mcp.x;
-            const dy = tip.y - mcp.y;
-            const len = Math.hypot(dx, dy) || 0.1;
-            const unitX = dx / len;
-            const unitY = dy / len;
-            
-            // Sample along the line extending beyond the fingertip
-            const startX = Math.floor(tip.x * analysisCanvas.width);
-            const startY = Math.floor(tip.y * analysisCanvas.height);
-            
-            let farthestX = startX;
-            let farthestY = startY;
-            let maxDist = 0;
-            let darkPixelFound = false;
-            
-            // Sample 80 pixels ahead in finger direction
-            for (let dist = 8; dist < 85; dist += 3) {
-                const sx = Math.floor(startX + unitX * dist * 1.8);
-                const sy = Math.floor(startY + unitY * dist * 1.8);
-                
-                if (sx < 0 || sx >= analysisCanvas.width || sy < 0 || sy >= analysisCanvas.height) break;
-                
-                const pixel = analysisCtx.getImageData(sx, sy, 1, 1).data;
-                const brightness = (pixel[0] + pixel[1] + pixel[2]) / 3;
-                
-                // Dark object (pen/pencil) detection
-                if (brightness < 95) {
-                    darkPixelFound = true;
-                    if (dist > maxDist) {
-                        maxDist = dist;
-                        farthestX = sx;
-                        farthestY = sy;
+                    if (hands && phase === 'collection') {
+                        await hands.send({ image: video });
                     }
-                }
-            }
+                },
+                width: 1280,
+                height: 720
+            });
             
-            if (darkPixelFound && maxDist > 22) {
-                // Convert back to normalized
-                const normX = farthestX / analysisCanvas.width;
-                const normY = farthestY / analysisCanvas.height;
-                return { x: normX, y: normY, isPen: true };
-            }
-            
-            return null;
+            camera.start();
         }
-
+        
         function onHandResults(results) {
-            if (!overlayCtx || !overlayCanvas || !videoElement) return;
+            if (phase !== 'collection' || !ctx) return;
             
-            overlayCtx.save();
-            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-            
-            const statusEl = document.getElementById('tracking-status');
-            const penIndicator = document.getElementById('pen-indicator');
-            const modeBadge = document.getElementById('ts-mode-badge');
-            const penStatus = document.getElementById('pen-status');
-            
-            // Draw video frame to analysis canvas for pen detection
-            if (analysisCtx && videoElement.readyState === 4) {
-                analysisCtx.drawImage(videoElement, 0, 0, analysisCanvas.width, analysisCanvas.height);
-            }
+            const handStatus = document.getElementById('hand-status');
             
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
+                const handedness = results.multiHandedness ? results.multiHandedness[0] : null;
                 
-                // Draw hand skeleton (retro green)
-                drawConnectors(overlayCtx, landmarks, HAND_CONNECTIONS, {
-                    color: '#00aa00',
-                    lineWidth: 2.5
-                });
-                drawLandmarks(overlayCtx, landmarks, {
-                    color: '#ffff00',
-                    lineWidth: 2,
-                    radius: 2.5
-                });
-                
-                const tip = landmarks[8];
-                const pip = landmarks[6];
-                const mcp = landmarks[5];
-                const wrist = landmarks[0];
-                
-                // === PEN TIP DETECTION ===
-                let finalTipX = tip.x;
-                let finalTipY = tip.y;
-                let usingPenTip = false;
-                
-                const penTipResult = detectPenTip(landmarks, videoElement);
-                if (penTipResult && penTipResult.isPen) {
-                    finalTipX = penTipResult.x;
-                    finalTipY = penTipResult.y;
-                    usingPenTip = true;
-                    penDetected = true;
-                    modeBadge.innerText = 'PEN MODE';
-                    modeBadge.style.background = '#ffaa00';
-                    penStatus.classList.remove('hidden');
-                } else {
-                    penDetected = false;
-                    modeBadge.innerText = 'HAND MODE';
-                    modeBadge.style.background = '#ffff00';
-                    penStatus.classList.add('hidden');
-                }
-                
-                // Smoothing
-                positionHistory.push({ x: finalTipX, y: finalTipY });
-                if (positionHistory.length > 5) positionHistory.shift();
-                let avgX = 0, avgY = 0;
-                positionHistory.forEach(p => { avgX += p.x; avgY += p.y; });
-                avgX /= positionHistory.length;
-                avgY /= positionHistory.length;
-                
-                // === STRICT POINTING POSE CHECK ===
-                const isPointing = isPointingPose(landmarks);
-                
-                // Metrics
-                const mappedX = Math.floor((1 - avgX) * previewCanvas.width);
-                const mappedY = Math.floor(avgY * previewCanvas.height);
-                
-                const dx = finalTipX - mcp.x;
-                const dy = finalTipY - mcp.y;
-                let angle = Math.atan2(dy, dx) * (180 / Math.PI);
-                if (angle < 0) angle += 360;
-                
-                const handScale = Math.hypot(landmarks[12].x - wrist.x, landmarks[12].y - wrist.y);
-                const normalizedDepth = Math.max(0.12, Math.min(0.92, 1.15 - handScale * 1.9));
-                
-                document.getElementById('metric-pos').innerHTML = 
-                    `X: <span class="text-[#ffff00]">${mappedX}</span> Y: <span class="text-[#ffff00]">${mappedY}</span>`;
-                document.getElementById('metric-depth').innerHTML = `${(normalizedDepth * 100).toFixed(0)}`;
-                document.getElementById('metric-angle').innerHTML = `${angle.toFixed(0)}°`;
-                document.getElementById('confidence').innerHTML = `${Math.floor((results.multiHandLandmarks[0][8].visibility || 0.9) * 100)}%`;
-                
-                // Visual indicator
-                const videoRect = videoElement.getBoundingClientRect();
-                const indX = (1 - avgX) * videoRect.width;
-                const indY = avgY * videoRect.height;
-                
-                penIndicator.style.left = `${indX - 12}px`;
-                penIndicator.style.top = `${indY - 12}px`;
-                penIndicator.style.display = 'block';
-                penIndicator.style.borderColor = usingPenTip ? '#ffff00' : '#00ff41';
-                
-                // Status text
-                if (isPointing) {
-                    statusEl.innerHTML = usingPenTip ? 
-                        '<span class="text-[#ffff00]">PEN TIP LOCKED — DRAWING ENABLED</span>' : 
-                        '<span class="text-[#00ff41]">POINTING POSE — DRAWING ENABLED</span>';
-                } else {
-                    statusEl.innerHTML = usingPenTip ? 
-                        '<span class="text-[#ffaa00]">PEN DETECTED — TUCK OTHER FINGERS TO DRAW</span>' : 
-                        '<span class="text-[#ff6666]">TUCK FINGERS — EXTEND INDEX TO DRAW</span>';
-                }
-                
-                // Send to whiteboard only when pointing + connected
-                const now = Date.now();
-                if (isConnected && channel && isPointing && (now - lastSentTime > 32)) {
-                    lastSentTime = now;
+                // Only use RIGHT hand
+                if (handedness && handedness.label === 'Right') {
+                    rightHandDetected = true;
+                    handStatus.innerHTML = 'RIGHT HAND DETECTED ✓';
+                    handStatus.style.color = '#00ff41';
                     
-                    channel.postMessage({
-                        type: 'update',
-                        x: mappedX,
-                        y: mappedY,
-                        drawing: true,
-                        erase: isEraserActive,
-                        color: tsCurrentColor,
-                        size: tsCurrentSize,
-                        angle: angle,
-                        depth: normalizedDepth
-                    });
+                    const tip = landmarks[8]; // Index fingertip
+                    const tipX = (1 - tip.x) * canvas.width;  // Flip because video is mirrored
+                    const tipY = tip.y * canvas.height;
                     
-                    drawOnPreview(mappedX, mappedY, true);
-                } else if (!isPointing && previewLastX !== null) {
-                    drawOnPreview(0, 0, false); // lift pen
-                }
-                
-                if (isConnected) {
-                    document.getElementById('connection-status').innerHTML = 
-                        `<i class="fa-solid fa-wifi text-[#00ff41]"></i> <span>CONNECTED • STREAMING</span>`;
+                    // Check collection
+                    checkOrbCollection(tipX, tipY);
+                } else {
+                    rightHandDetected = false;
+                    handStatus.innerHTML = 'LEFT HAND - USE RIGHT HAND';
+                    handStatus.style.color = '#ffaa00';
                 }
             } else {
-                penIndicator.style.display = 'none';
-                statusEl.innerHTML = '<span class="text-[#ff6666]">NO HAND DETECTED — SHOW HAND OR PEN</span>';
-                document.getElementById('metric-pos').innerHTML = 'X: --- Y: ---';
-                document.getElementById('metric-depth').innerHTML = '---';
-                document.getElementById('metric-angle').innerHTML = '---°';
-                penStatus.classList.add('hidden');
+                rightHandDetected = false;
+                handStatus.innerHTML = 'NO HAND DETECTED';
+                handStatus.style.color = '#ff6666';
             }
-            
-            overlayCtx.restore();
         }
-
-        let previewLastX = null, previewLastY = null;
-
-        function drawOnPreview(x, y, shouldDraw) {
-            if (!previewCtx) return;
+        
+        function checkOrbCollection(tipX, tipY) {
+            let collectedThisFrame = false;
             
-            if (shouldDraw && previewLastX !== null && previewLastY !== null) {
-                previewCtx.strokeStyle = isEraserActive ? '#ffffff' : tsCurrentColor;
-                previewCtx.lineWidth = tsCurrentSize;
-                previewCtx.lineJoin = 'round';
-                previewCtx.lineCap = 'round';
+            orbs.forEach((orb, index) => {
+                if (orb.collected || !orb.mapped) return;
                 
-                previewCtx.beginPath();
-                previewCtx.moveTo(previewLastX, previewLastY);
-                previewCtx.lineTo(x, y);
-                previewCtx.stroke();
-            }
-            
-            if (shouldDraw) {
-                previewLastX = x;
-                previewLastY = y;
-            } else {
-                previewLastX = null;
-                previewLastY = null;
-            }
-        }
-
-        function initTouchscreenChannel() {
-            channel = new BroadcastChannel('pen-track-whiteboard-v1');
-            channel.onmessage = (event) => {
-                const data = event.data;
-                if (data.type === 'whiteboard-ready') {
-                    document.getElementById('connection-status').innerHTML = 
-                        `<i class="fa-solid fa-wifi"></i> <span>WHITEBOARD DETECTED — PRESS CONNECT</span>`;
-                } else if (data.type === 'clear') {
-                    previewCtx.fillStyle = '#ffffff';
-                    previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+                const dist = Math.hypot(tipX - orb.x, tipY - orb.y);
+                
+                if (dist < orb.radius + 35) {
+                    orb.collected = true;
+                    collectedCount++;
+                    collectedThisFrame = true;
+                    
+                    // Collection effect
+                    createCollectionParticles(orb.x, orb.y, orb.color);
                 }
-            };
-        }
-
-        function connectToWhiteboard() {
-            if (!channel) channel = new BroadcastChannel('pen-track-whiteboard-v1');
-            isConnected = true;
+            });
             
-            const btn = document.getElementById('connect-btn');
-            btn.innerHTML = `<i class="fa-solid fa-check"></i> <span>CONNECTED</span>`;
+            if (collectedThisFrame) {
+                updateOrbCount();
+                
+                // Check win condition
+                const remaining = orbs.filter(o => !o.collected).length;
+                if (remaining === 0) {
+                    setTimeout(showWinDialog, 600);
+                }
+            }
+        }
+        
+        function createCollectionParticles(x, y, color) {
+            for (let i = 0; i < 12; i++) {
+                setTimeout(() => {
+                    if (!ctx) return;
+                    ctx.save();
+                    ctx.fillStyle = color;
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 12;
+                    
+                    const px = x + (Math.random() - 0.5) * 40;
+                    const py = y + (Math.random() - 0.5) * 40;
+                    const size = 3 + Math.random() * 4;
+                    
+                    ctx.beginPath();
+                    ctx.arc(px, py, size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }, i * 18);
+            }
+        }
+        
+        // ==================== PHASE MANAGEMENT ====================
+        function startCollectionPhase() {
+            phase = 'collection';
+            mappingActive = false;
+            
+            document.getElementById('phase-title').innerText = 'AR CLEANER 95 - COLLECTION PHASE';
+            document.getElementById('status-badge').innerText = 'COLLECTING';
+            document.getElementById('status-badge').style.background = '#00ff41';
+            document.getElementById('status-badge').style.color = '#000';
+            
+            document.getElementById('mapping-btn').classList.add('hidden');
+            document.getElementById('collection-controls').classList.remove('hidden');
+            document.getElementById('instructions').innerText = 'MOVE RIGHT HAND CLOSE TO ORBS TO COLLECT THEM';
+            
+            // Start hand tracking if not already
+            if (!hands) {
+                initHandTracking();
+            }
+            
+            // Clear lines for cleaner collection view
+            lines = [];
+            updateOrbCount();
+        }
+        
+        function startARCleaner() {
+            document.getElementById('landing').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            
+            video = document.getElementById('ar-video');
+            canvas = document.getElementById('game-canvas');
+            ctx = canvas.getContext('2d');
+            
+            // Set canvas size to match video
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+            
+            // Start camera
+            navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }  // Rear camera for AR
+            }).then(stream => {
+                video.srcObject = stream;
+                video.play();
+                
+                // Wait for video to be ready
+                video.onloadedmetadata = () => {
+                    createOrbs();
+                    pointerX = canvas.width / 2;
+                    pointerY = canvas.height / 2;
+                    
+                    // Start game loop
+                    setInterval(() => {
+                        if (phase === 'mapping') {
+                            checkMappedOrbs();
+                        }
+                        draw();
+                    }, 60);
+                    
+                    // Initial instructions
+                    setTimeout(() => {
+                        document.getElementById('instructions').innerText = 'PRESS THE BUTTON BELOW TO START MAPPING';
+                    }, 2200);
+                };
+            }).catch(err => {
+                alert("Camera access required for AR Cleaner. Please allow camera in Safari.");
+                console.error(err);
+            });
+            
+            // Init device orientation for AR tilt
+            initDeviceOrientation();
+            
+            // Initial orb count
+            updateOrbCount();
+            
+            // Easter egg: press space to auto-map (for testing)
+            document.addEventListener('keydown', e => {
+                if (e.key === ' ' && phase === 'mapping') {
+                    orbs.forEach(o => o.mapped = true);
+                    mappedCount = totalOrbs;
+                    updateOrbCount();
+                }
+            });
+        }
+        
+        function showWinDialog() {
+            document.getElementById('win-dialog').classList.remove('hidden');
+            
+            // Stop hand tracking
+            if (camera) camera.stop();
+            if (hands) hands.close();
+        }
+        
+        function restartGame() {
+            document.getElementById('win-dialog').classList.add('hidden');
+            
+            // Reset everything
+            orbs = [];
+            lines = [];
+            mappedCount = 0;
+            collectedCount = 0;
+            phase = 'mapping';
+            mappingActive = false;
+            rightHandDetected = false;
+            
+            document.getElementById('phase-title').innerText = 'AR CLEANER 95 - MAPPING PHASE';
+            document.getElementById('status-badge').innerText = 'MAPPING';
+            document.getElementById('status-badge').style.background = '#ffff00';
+            document.getElementById('status-badge').style.color = '#000';
+            
+            document.getElementById('mapping-btn').classList.remove('hidden');
+            document.getElementById('collection-controls').classList.add('hidden');
+            document.getElementById('btn-text').innerText = 'START MAPPING LASER';
+            document.getElementById('instructions').innerText = 'PRESS BUTTON • MOVE PHONE TO DRAW LINES • MAP ALL ORBS';
+            
+            const btn = document.getElementById('mapping-btn');
             btn.style.background = '#006600';
-            btn.disabled = true;
+            btn.style.borderColor = '#00ff00';
             
-            document.getElementById('connection-status').innerHTML = 
-                `<i class="fa-solid fa-wifi text-[#00ff41]"></i> <span>CONNECTED TO WHITEBOARD</span>`;
+            createOrbs();
+            updateOrbCount();
+            draw();
             
-            channel.postMessage({ type: 'join', role: 'controller' });
-            
-            setTimeout(() => {
-                if (channel) {
-                    channel.postMessage({ type: 'tool', color: tsCurrentColor, erase: isEraserActive, size: tsCurrentSize });
-                }
-            }, 280);
-            
-            showRetroToast("CONNECTED! YOUR PEN NOW CONTROLS THE WHITEBOARD.");
-        }
-
-        function calibratePen() {
-            positionHistory = [];
-            penDetected = false;
-            showRetroToast("PEN TIP CALIBRATION COMPLETE.");
-            
-            const ind = document.getElementById('pen-indicator');
-            ind.style.borderColor = '#00ff41';
-            setTimeout(() => {
-                if (ind) ind.style.borderColor = penDetected ? '#ffff00' : '#00ff41';
-            }, 900);
-        }
-
-        function clearPreview() {
-            if (previewCtx && previewCanvas) {
-                previewCtx.fillStyle = '#ffffff';
-                previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+            // Restart camera if needed
+            if (video && video.srcObject) {
+                // Already running
             }
-            previewLastX = null;
-            previewLastY = null;
         }
-
-        // ==================== UTILS ====================
-        function showRetroToast(msg) {
-            const toast = document.createElement('div');
-            toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-2 bg-black border-2 border-[#00ff41] text-[#00ff41] text-sm font-mono z-[200] flex items-center gap-x-2`;
-            toast.innerHTML = `<i class="fa-solid fa-info-circle"></i> <span>${msg}</span>`;
-            document.body.appendChild(toast);
+        
+        function exitGame() {
+            if (camera) camera.stop();
+            if (hands) hands.close();
             
-            setTimeout(() => {
-                toast.style.transition = 'all 0.4s ease';
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 400);
-            }, 2800);
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('landing').classList.remove('hidden');
+            document.getElementById('win-dialog').classList.add('hidden');
         }
-
-        // Keyboard
-        document.addEventListener('keydown', function(e) {
-            if (currentMode === 'touchscreen') {
-                if (e.key.toLowerCase() === 'e') toggleEraser();
-                if (e.key === 'Escape') exitMode();
-            }
-            if (currentMode === 'whiteboard') {
-                if (e.key.toLowerCase() === 'e') wbToggleEraser();
-                if (e.key.toLowerCase() === 'c') clearWhiteboard();
-            }
-        });
-
-        function initializeApp() {
-            initTailwind();
-            console.log('%c[PenSync 95] Retro 90s hand/pen tracking initialized.', 'color:#666');
+        
+        // ==================== INIT ====================
+        function initialize() {
+            console.log('%c[AR CLEANER 95] Retro Windows 95 AR Orb Cleaner initialized for iOS Safari', 'color:#666');
             
-            // Boot hint
-            setTimeout(() => {
-                if (!currentMode) {
-                    const hint = document.createElement('div');
-                    hint.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-[#ffff00] border-2 border-black text-xs font-bold text-black flex items-center gap-x-2 z-50';
-                    hint.innerHTML = `<span>HOLD A PEN OR PENCIL FOR AUTOMATIC TIP DETECTION</span>`;
-                    document.body.appendChild(hint);
-                    setTimeout(() => hint.remove(), 5200);
-                }
-            }, 18000);
+            // iOS specific note
+            if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+                console.log('%c[AR CLEANER 95] Running on iOS - WebXR AR available if supported', 'color:#00aa00');
+            }
         }
-
-        window.onload = initializeApp;
-        window.PenSync95 = { exitMode, calibratePen };
+        
+        window.onload = initialize;
     </script>
 </body>
 </html>
