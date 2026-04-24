@@ -23,6 +23,8 @@ html, body {
 <button id="start">Start Swarm</button>
 
 <script>
+let swarmWindows = [];
+
 function spawnWindow() {
     const w = 260;
     const h = 180;
@@ -30,17 +32,27 @@ function spawnWindow() {
     const win = window.open("https://www.crazygames.com", "", `width=${w},height=${h}`);
     if (!win) return;
 
-    startMovement(win);
+    swarmWindows.push(win);
 }
 
 document.getElementById("start").onclick = () => {
-    // spawn windows immediately
+    // OPEN immediately (prevents popup blocking)
     for (let i = 0; i < 5; i++) {
         spawnWindow();
     }
 
-    // keep spawning more
-    setInterval(spawnWindow, 10000);
+    // AFTER 5 seconds → start swarm movement
+    setTimeout(() => {
+        swarmWindows.forEach(startMovement);
+
+        // keep spawning new ones (these may be limited by browser)
+        setInterval(() => {
+            spawnWindow();
+            const last = swarmWindows[swarmWindows.length - 1];
+            if (last) startMovement(last);
+        }, 10000);
+
+    }, 5000);
 };
 
 function startMovement(win) {
