@@ -1,85 +1,123 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Swarm</title>
-<style>
-html, body {
-    margin:0;
-    padding:0;
-    overflow:hidden;
-    background:black;
-}
-#bg {
-    position:fixed;
-    width:100%;
-    height:100%;
-    object-fit:cover;
-}
-</style>
+    <meta charset="UTF-8">
+    <title>Swarm - CrazyGames Edition</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: black;
+            font-family: sans-serif;
+        }
+        /* The GIF is now the main background */
+        #bg {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+        }
+        #overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2rem;
+            border-radius: 15px;
+        }
+        button {
+            background: #ff00ff;
+            border: none;
+            padding: 15px 30px;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.1);
+        }
+    </style>
 </head>
 <body>
+
 <img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
 
-<button id="start">Start Swarm</button>
+<div id="overlay">
+    <h1>CrazyGames Swarm</h1>
+    <p>Allow popups to see the swarm!</p>
+    <button id="start">Launch Swarm</button>
+</div>
 
 <script>
-let swarmWindows = [];
-
-function spawnWindow() {
-    const w = 260;
-    const h = 180;
-
-    const win = window.open("https://www.crazygames.com", "", `width=${w},height=${h}`);
-    if (!win) return;
-
-    swarmWindows.push(win);
-}
+const GAME_URL = "https://www.crazygames.com";
 
 document.getElementById("start").onclick = () => {
-    // OPEN immediately (prevents popup blocking)
+    // Hide the UI after clicking
+    document.getElementById("overlay").style.display = "none";
+
+    // Spawn 5 initially
     for (let i = 0; i < 5; i++) {
-        spawnWindow();
+        setTimeout(spawnWindow, i * 300);
     }
 
-    // AFTER 5 seconds → start swarm movement
-    setTimeout(() => {
-        swarmWindows.forEach(startMovement);
-
-        // keep spawning new ones (these may be limited by browser)
-        setInterval(() => {
-            spawnWindow();
-            const last = swarmWindows[swarmWindows.length - 1];
-            if (last) startMovement(last);
-        }, 10000);
-
-    }, 5000);
+    // Spawn more every 10 seconds
+    setInterval(spawnWindow, 10000);
 };
 
+function spawnWindow() {
+    const w = 400; // Increased size slightly to see the site better
+    const h = 300;
+
+    // We open the URL directly instead of a blank window
+    const win = window.open(GAME_URL, "_blank", `width=${w},height=${h}`);
+    
+    if (!win) {
+        console.warn("Popup blocked! Please allow popups for this site.");
+        return;
+    }
+
+    startMovement(win);
+}
+
 function startMovement(win) {
-    let x = win.screenX;
-    let y = win.screenY;
-    let vx = (Math.random() - 0.5) * 6;
-    let vy = (Math.random() - 0.5) * 6;
+    let x = Math.random() * (screen.availWidth - 400);
+    let y = Math.random() * (screen.availHeight - 300);
+
+    // Random velocity
+    let vx = (Math.random() - 0.5) * 10;
+    let vy = (Math.random() - 0.5) * 10;
 
     function loop() {
         try {
+            if (win.closed) return;
+
             x += vx;
             y += vy;
 
             const sw = screen.availWidth;
             const sh = screen.availHeight;
 
+            // Bounce logic
             if (x <= 0 || x >= sw - win.outerWidth) vx *= -1;
             if (y <= 0 || y >= sh - win.outerHeight) vy *= -1;
 
             win.moveTo(x, y);
-            win.requestAnimationFrame(loop);
-        } catch {
-            // window closed
+            requestAnimationFrame(loop);
+        } catch (e) {
+            // This handles cases where the window is closed or focus is lost
         }
     }
 
-    loop();
+    // Small delay to let the window initialize
+    setTimeout(loop, 500);
 }
 </script>
 </body>
