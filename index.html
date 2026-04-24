@@ -2,39 +2,134 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Swarm - Small Windows</title>
+    <title>Swarm - Fixed</title>
     <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: black;
-            font-family: sans-serif;
-        }
-        #bg {
-            position: fixed;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: -1;
-        }
+        html, body { margin: 0; padding: 0; overflow: hidden; background: black; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #bg { position: fixed; width: 100%; height: 100%; object-fit: cover; z-index: -1; }
         #overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            color: white;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 2rem;
-            border-radius: 15px;
-            border: 2px solid #ff00ff;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; color: white; background: rgba(0, 0, 0, 0.85);
+            padding: 30px; border-radius: 20px; border: 3px solid #ff00ff; box-shadow: 0 0 20px #ff00ff;
         }
         button {
-            background: #ff00ff;
-            border: none;
-            padding: 12px 24px;
-            color: white;
+            background: #ff00ff; border: none; padding: 15px 40px; color: white;
+            font-size: 22px; font-weight: bold; cursor: pointer; border-radius: 50px;
+            transition: all 0.3s;
+        }
+        button:hover { background: #00ffff; color: black; transform: scale(1.05); }
+    </style>
+</head>
+<body>
+
+<img id="bg" src="https://i.redd.it/brvc63j20c751.gif">
+
+<div id="overlay">
+    <h1>SWARM ACTIVE</h1>
+    <p>If windows don't appear, <b>Enable Popups</b> in your browser bar!</p>
+    <button id="start">LAUNCH SWARM</button>
+</div>
+
+<script>
+const GAME_URL = "https://www.crazygames.com";
+const MAX_WINDOWS = 8; 
+let windowQueue = [];
+let mx = 0;
+let my = 0;
+
+// Global mouse tracking
+window.addEventListener('mousemove', (e) => {
+    mx = e.screenX;
+    my = e.screenY;
+});
+
+document.getElementById("start").onclick = function() {
+    document.getElementById("overlay").style.display = "none";
+    
+    // Launch first batch
+    for (let i = 0; i < 3; i++) {
+        setTimeout(spawnWindow, i * 400);
+    }
+
+    // Keep spawning
+    setInterval(spawnWindow, 8000);
+};
+
+function spawnWindow() {
+    // Queue management: Remove oldest
+    if (windowQueue.length >= MAX_WINDOWS) {
+        let oldest = windowQueue.shift();
+        if (oldest && !oldest.closed) oldest.close();
+    }
+
+    const w = 180; // Small size
+    const h = 140;
+    
+    // Center spawn
+    const left = (screen.width/2) - (w/2);
+    const top = (screen.height/2) - (h/2);
+
+    const win = window.open(GAME_URL, `win_${Date.now()}`, `width=${w},height=${h},left=${left},top=${top},menubar=no,status=no,location=no`);
+    
+    if (win) {
+        windowQueue.push(win);
+        animateWindow(win);
+    } else {
+        console.error("Popup blocked! Check your browser settings.");
+    }
+}
+
+function animateWindow(win) {
+    let x = screen.width / 2;
+    let y = screen.height / 2;
+    let vx = (Math.random() - 0.5) * 15;
+    let vy = (Math.random() - 0.5) * 15;
+
+    function frame() {
+        if (win.closed) return;
+
+        // Calculate distance to mouse
+        const winCX = x + (win.outerWidth / 2);
+        const winCY = y + (win.outerHeight / 2);
+        let dx = winCX - mx;
+        let dy = winCY - my;
+        let dist = Math.sqrt(dx*dx + dy*dy) || 1;
+
+        // "Flee" logic: if mouse is within 400px
+        if (dist < 400) {
+            let force = (400 - dist) / 400;
+            vx += (dx / dist) * force * 5; 
+            vy += (dy / dist) * force * 5;
+        }
+
+        // Friction to keep it controlled
+        vx *= 0.97;
+        vy *= 0.97;
+
+        x += vx;
+        y += vy;
+
+        // Bounce off screen edges
+        const pad = 10;
+        if (x <= pad || x >= screen.availWidth - win.outerWidth - pad) vx *= -1.1;
+        if (y <= pad || y >= screen.availHeight - win.outerHeight - pad) vy *= -1.1;
+
+        // Keep inside bounds
+        x = Math.max(pad, Math.min(screen.availWidth - win.outerWidth - pad, x));
+        y = Math.max(pad, Math.min(screen.availHeight - win.outerHeight - pad, y));
+
+        try {
+            win.moveTo(x, y);
+        } catch (e) { return; }
+
+        requestAnimationFrame(frame);
+    }
+    
+    // Small delay to ensure window is fully initialized before moving
+    setTimeout(frame, 300);
+}
+</script>
+</body>
+</html>            color: white;
             font-size: 18px;
             cursor: pointer;
             border-radius: 5px;
