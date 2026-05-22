@@ -61,7 +61,6 @@
             justify-content: space-between;
             align-items: center;
             z-index: 100;
-            transition: all 0.3s ease;
         }
 
         .logo {
@@ -75,7 +74,7 @@
             bottom: 40px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(30, 30, 30, 0.85);
+            background: rgba(30, 30, 30, 0.9);
             backdrop-filter: blur(20px);
             border-radius: 9999px;
             padding: 8px;
@@ -87,7 +86,7 @@
         }
 
         button {
-            padding: 14px 28px;
+            padding: 14px 24px;
             background: rgba(255,255,255,0.1);
             color: white;
             border: none;
@@ -106,12 +105,7 @@
 
         button.accent {
             background: var(--accent);
-            color: white;
             font-weight: 600;
-        }
-
-        button.accent:hover {
-            background: #0077ed;
         }
 
         #status {
@@ -127,30 +121,29 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.4);
             z-index: 150;
             white-space: nowrap;
-            text-align: center;
         }
 
-        #roomCode {
+        #roomInfo {
             position: fixed;
             top: 130px;
             left: 50%;
             transform: translateX(-50%);
             background: rgba(30, 30, 30, 0.85);
             backdrop-filter: blur(20px);
-            padding: 10px 24px;
+            padding: 12px 24px;
             border-radius: 9999px;
-            font-size: 17px;
-            font-weight: 600;
-            letter-spacing: 4px;
+            font-size: 15px;
             z-index: 150;
-            max-width: 90%;
-            text-align: center;
             display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            text-align: center;
         }
 
         #remoteVideos {
             position: fixed;
-            bottom: 120px;
+            bottom: 130px;
             left: 24px;
             display: flex;
             gap: 12px;
@@ -176,7 +169,7 @@
             position: absolute;
             bottom: 8px;
             left: 8px;
-            background: rgba(0,0,0,0.6);
+            background: rgba(0,0,0,0.7);
             padding: 2px 8px;
             border-radius: 9999px;
             font-size: 11px;
@@ -184,7 +177,7 @@
 
         .vr-notice {
             position: fixed;
-            bottom: 180px;
+            bottom: 190px;
             right: 24px;
             background: rgba(255, 149, 0, 0.9);
             color: black;
@@ -199,17 +192,8 @@
         @media (max-width: 480px) {
             .controls { bottom: 30px; padding: 6px; }
             button { padding: 12px 20px; font-size: 14px; }
-            #remoteVideos { left: 16px; bottom: 100px; }
+            #remoteVideos { left: 16px; bottom: 110px; }
             .remote { width: 110px; height: 150px; }
-        }
-
-        .fade-in {
-            animation: fadeIn 0.6s ease forwards;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
@@ -222,9 +206,13 @@
     </header>
 
     <div class="overlay">
-        <div id="status">Ready to reflect</div>
-        <div id="roomCode">Room Code: <span id="codeDisplay">00000</span></div>
+        <div id="status">Ready</div>
         
+        <div id="roomInfo">
+            <div>Room Code: <strong id="roomCodeDisplay">00000</strong></div>
+            <button id="copyCodeBtn" style="padding: 6px 14px; font-size: 13px;">Copy Code</button>
+        </div>
+
         <div id="remoteVideos"></div>
         
         <div class="vr-notice" id="vrNotice">
@@ -247,8 +235,8 @@
         let connections = {};
         let localVideo = document.getElementById('localVideo');
         let statusEl = document.getElementById('status');
-        let roomCodeEl = document.getElementById('roomCode');
-        let codeDisplay = document.getElementById('codeDisplay');
+        let remoteVideosContainer = document.getElementById('remoteVideos');
+        let roomCodeDisplay = document.getElementById('roomCodeDisplay');
 
         function generateShortCode() {
             return Math.floor(10000 + Math.random() * 90000).toString();
@@ -261,87 +249,102 @@
                     audio: false
                 });
                 localVideo.srcObject = localStream;
-                statusEl.textContent = "Camera active • Mirrored";
+                statusEl.textContent = "Camera Active • Mirrored";
                 statusEl.style.color = "#30d158";
+                return true;
             } catch (e) {
+                console.error(e);
                 statusEl.textContent = "Camera access denied";
+                statusEl.style.color = "#ff453a";
+                return false;
             }
         }
 
         function initPeer() {
             if (peer) return;
+            
             peer = new Peer();
 
             peer.on('open', id => {
                 myPeerId = id;
                 shortRoomCode = generateShortCode();
-                codeDisplay.textContent = shortRoomCode;
-                roomCodeEl.style.display = 'block';
-                statusEl.textContent = "Connected • Ready to share";
+                roomCodeDisplay.textContent = shortRoomCode;
+                document.getElementById('roomInfo').style.display = 'flex';
+                statusEl.textContent = "Ready • Share 5-digit code";
             });
 
             peer.on('call', call => {
-                if (localStream) call.answer(localStream);
-                handleIncomingCall(call);
+                if (localStream) {
+                    call.answer(localStream);
+                    handleRemoteStream(call);
+                }
             });
 
             peer.on('error', err => {
                 console.error(err);
-                statusEl.textContent = "Connection issue";
+                statusEl.textContent = "Connection error";
             });
         }
 
-        function handleIncomingCall(call) {
+        function handleRemoteStream(call) {
             call.on('stream', remoteStream => {
+                const existing = document.getElementById(`remote-${call.peer}`);
+                if (existing) existing.remove();
+
                 const container = document.createElement('div');
-                container.className = 'remote-container fade-in';
-                
+                container.className = 'remote-container';
+                container.id = `remote-${call.peer}`;
+
                 const vid = document.createElement('video');
                 vid.srcObject = remoteStream;
                 vid.autoplay = true;
                 vid.playsInline = true;
                 vid.className = 'remote';
-                
+
                 const label = document.createElement('div');
                 label.className = 'remote-label';
                 label.textContent = 'Live';
-                
+
                 container.appendChild(vid);
                 container.appendChild(label);
-                document.getElementById('remoteVideos').appendChild(container);
-                
+                remoteVideosContainer.appendChild(container);
+
                 connections[call.peer] = call;
+                statusEl.textContent = "Connected";
+            });
+
+            call.on('close', () => {
+                const el = document.getElementById(`remote-${call.peer}`);
+                if (el) el.remove();
             });
         }
 
-        document.getElementById('startBtn').addEventListener('click', () => {
-            startCamera();
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            await startCamera();
             initPeer();
         });
 
         document.getElementById('createBtn').addEventListener('click', () => {
-            if (!peer) initPeer();
             if (!localStream) {
                 alert("Please start your camera first");
                 return;
             }
-            alert(`Share this 5-digit Room Code with others:\n\n${shortRoomCode}\n\nThey can join using this code.\n\n(Internal PeerJS ID is used behind the scenes)`);
+            initPeer();
         });
 
         document.getElementById('joinBtn').addEventListener('click', () => {
-            if (!peer) initPeer();
             if (!localStream) {
                 alert("Please start your camera first");
                 return;
             }
-            const enteredCode = prompt("Enter the 5-digit Room Code:");
+            initPeer();
+
+            const enteredCode = prompt("Enter 5-digit Room Code:");
             if (enteredCode && enteredCode.length === 5) {
-                // Note: In pure client-side, we can't reliably map short code to Peer ID without a server.
-                // For demo: Show full ID prompt as fallback
-                const fullId = prompt("Enter the full connection ID (shown in console) or use demo mode:");
+                const fullId = prompt("Enter the full Peer ID for this room (ask the host):");
                 if (fullId) {
                     const call = peer.call(fullId, localStream);
-                    handleIncomingCall(call);
+                    handleRemoteStream(call);
                     statusEl.textContent = "Connecting...";
                 }
             } else {
@@ -349,50 +352,56 @@
             }
         });
 
+        document.getElementById('copyCodeBtn').addEventListener('click', () => {
+            if (shortRoomCode) {
+                navigator.clipboard.writeText(shortRoomCode).then(() => {
+                    const btn = document.getElementById('copyCodeBtn');
+                    const original = btn.textContent;
+                    btn.textContent = "Copied!";
+                    setTimeout(() => btn.textContent = original, 2000);
+                });
+            }
+        });
+
         async function enterVR() {
             if (!navigator.xr) {
-                alert("WebXR is not supported on this device.\n\nUse Meta Browser on Quest 2.");
+                alert("WebXR not supported.\n\nBest on Meta Quest Browser.");
                 return;
             }
             try {
                 const session = await navigator.xr.requestSession("immersive-vr", {
                     requiredFeatures: ["local-floor"]
                 });
-                
+
                 document.querySelector('header').style.display = 'none';
                 document.querySelector('.controls').style.display = 'none';
-                document.getElementById('vrNotice').style.display = 'none';
-                roomCodeEl.style.display = 'none';
-                
-                statusEl.textContent = "🌐 Immersive VR Mode";
+                document.getElementById('roomInfo').style.display = 'none';
+
+                statusEl.textContent = "VR Mode Active";
                 statusEl.style.top = "40px";
-                
-                alert("✅ You are now in Quest Immersive VR Mode.\n\nYour mirrored camera is active in VR space.");
-                
+
                 session.addEventListener('end', () => {
                     document.querySelector('header').style.display = 'flex';
                     document.querySelector('.controls').style.display = 'flex';
-                    document.getElementById('vrNotice').style.display = 'block';
-                    roomCodeEl.style.display = 'block';
+                    document.getElementById('roomInfo').style.display = 'flex';
                     statusEl.style.top = "80px";
-                    statusEl.textContent = "Exited VR Mode";
+                    statusEl.textContent = "Exited VR";
                 });
             } catch (e) {
-                console.error(e);
-                alert("Could not enter VR: " + e.message);
+                alert("Failed to enter VR: " + e.message);
             }
         }
 
         document.getElementById('vrBtn').addEventListener('click', enterVR);
 
-        window.addEventListener('resize', () => {
-            document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+        window.addEventListener('beforeunload', () => {
+            if (localStream) localStream.getTracks().forEach(track => track.stop());
+            if (peer) peer.destroy();
         });
 
         window.onload = () => {
-            console.log("%cReflect • Apple-inspired Camera Mirror", "color:#0071e3; font-size:18px; font-weight:500");
-            console.log("Note: 5-digit codes are for easy sharing. Full PeerJS IDs are used for actual connection.");
-            initPeer();
+            console.log("%cReflect • Live Camera Mirror", "color:#0071e3; font-size:18px; font-weight:600");
+            console.log("5-digit codes are for sharing. Full PeerJS ID is still required for connection (prompted on join).");
         };
     </script>
 </body>
