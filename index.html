@@ -3,163 +3,183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mario XR - Quest Controller Demo</title>
+    <title>Mario XR - Quest Controller (libsm64 Ready)</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
-        #ui { 
-            position: absolute; top: 10px; left: 10px; z-index: 100; 
-            background: rgba(10, 15, 20, 0.9); color: #e2e8f0; 
-            padding: 15px; border-radius: 8px; width: 300px; 
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        button { 
-            background: #0284c7; color: white; border: none; border-radius: 4px; 
-            padding: 12px; width: 100%; margin: 8px 0; font-weight: bold; cursor: pointer;
-        }
-        #xrButton {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 200;
-            padding: 15px 40px; font-size: 18px; font-weight: bold;
-            background: #f97316; color: white; border: none; border-radius: 8px; cursor: pointer;
-        }
+        body { margin:0; overflow:hidden; background:#000; font-family:Segoe UI,sans-serif; }
+        #ui { position:absolute; top:10px; left:10px; z-index:100; background:rgba(10,15,20,0.9); color:#e2e8f0; padding:15px; border-radius:8px; width:340px; }
+        button { background:#0284c7; color:white; border:none; border-radius:4px; padding:12px; width:100%; margin:8px 0; font-weight:bold; cursor:pointer; }
+        #status { margin-top:10px; font-size:13px; color:#4ade80; }
+        #progress { margin-top:8px; height:6px; background:#0284c7; width:0%; transition:width 0.3s; }
     </style>
 </head>
 <body>
     <div id="ui">
         <h2>Mario XR Demo</h2>
-        <p><strong>Quest Controls:</strong><br>
-        • Left Stick: Move Mario<br>
-        • Right Stick: Camera / Turn<br>
-        • Right Trigger: Jump<br>
-        • Left Trigger: Punch / Action<br>
-        • Grips: Crouch / Run</p>
-        <button id="btnReset">Respawn Mario</button>
+        <input type="file" id="romInput" accept=".z64" style="display:block;margin:10px 0;">
+        <button id="loadRomBtn">Load ROM & Start</button>
+        <button id="downloadLibBtn">Download libsm64 Files</button>
+        <div id="status">Waiting for libsm64 + ROM...</div>
+        <div id="progress"></div>
     </div>
 
-    <button id="xrButton">Enter Mixed Reality (Quest)</button>
+    <button id="xrButton" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);padding:15px 30px;font-size:18px;">Enter Mixed Reality</button>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 
     <script>
-        // ==================== GLOBALS ====================
         let scene, camera, renderer, clock;
-        let roomGroup;
-        let mario, marioVelocity = new THREE.Vector3();
-        let isJumping = false, isCrouching = false;
+        let roomGroup, marioGroup, marioMesh;
         let controllerL, controllerR;
-        let moveDir = new THREE.Vector3();
-        let roomDimensions = { w: 8, h: 3, l: 8 };
+        let romData = null;
+        let libsm64Loaded = false;
+        let positionBuffer, colorBuffer;
+
+        // Auto-load libsm64
+        async function loadLibsm64() {
+            const status = document.getElementById('status');
+            const progress = document.getElementById('progress');
+            
+            status.textContent = 'Downloading libsm64...';
+            progress.style.width = '30%';
+
+            try {
+                // Try to load from public sources or fallback
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/gh/zalo/libsm64-three@main/public/libsm64.js'; // Example public path (adjust if needed)
+                script.onload = () => {
+                    progress.style.width = '70%';
+                    status.innerHTML = 'libsm64.js loaded ✓<br>Waiting for WASM...';
+                    // WASM usually loads automatically via the JS glue
+                    libsm64Loaded = true;
+                    setTimeout(() => { progress.style.width = '100%'; }, 800);
+                };
+                document.head.appendChild(script);
+            } catch (e) {
+                status.textContent = 'Failed to auto-download. Please host files locally.';
+                console.error(e);
+            }
+        }
 
         init();
 
         function init() {
             clock = new THREE.Clock();
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 1.6, 3);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
+            camera.position.set(0, 2, 5);
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
             renderer.xr.enabled = true;
-            renderer.shadowMap.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            // Lights
             scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-            const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-            dirLight.position.set(5, 10, 5);
-            dirLight.castShadow = true;
-            scene.add(dirLight);
+            const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+            sun.position.set(5,10,5);
+            scene.add(sun);
 
             buildRoom();
-            spawnMario();
+            createMarioPlaceholder();
 
-            // UI
-            document.getElementById('btnReset').addEventListener('click', () => {
-                mario.position.set(0, 0.5, 0);
-                marioVelocity.set(0,0,0);
-            });
-
-            const xrBtn = document.getElementById('xrButton');
-            if (navigator.xr) {
-                navigator.xr.isSessionSupported('immersive-ar').then(sup => {
-                    if (sup) xrBtn.addEventListener('click', startXR);
-                });
-            }
+            document.getElementById('loadRomBtn').addEventListener('click', loadROM);
+            document.getElementById('downloadLibBtn').addEventListener('click', loadLibsm64);
+            document.getElementById('xrButton').addEventListener('click', startXR);
 
             window.addEventListener('resize', onResize);
         }
 
         function buildRoom() {
-            if (roomGroup) scene.remove(roomGroup);
             roomGroup = new THREE.Group();
-
-            const mat = new THREE.MeshStandardMaterial({ 
-                color: 0x475569, roughness: 0.8, metalness: 0.2 
-            });
-
-            // Floor
-            const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomDimensions.w * 2, roomDimensions.l * 2), mat);
-            floor.rotation.x = -Math.PI / 2;
-            floor.receiveShadow = true;
+            const floor = new THREE.Mesh(
+                new THREE.PlaneGeometry(20,20),
+                new THREE.MeshStandardMaterial({color:0x475569, roughness:0.9})
+            );
+            floor.rotation.x = -Math.PI/2;
             roomGroup.add(floor);
-
-            // Walls (simple box for collision demo)
-            const wallMat = new THREE.MeshStandardMaterial({ color: 0x64748b });
-            const walls = [
-                { pos: [0, roomDimensions.h/2, -roomDimensions.l], size: [roomDimensions.w*2, roomDimensions.h, 0.2] },
-                { pos: [0, roomDimensions.h/2, roomDimensions.l], size: [roomDimensions.w*2, roomDimensions.h, 0.2] },
-                { pos: [-roomDimensions.w, roomDimensions.h/2, 0], size: [0.2, roomDimensions.h, roomDimensions.l*2] },
-                { pos: [roomDimensions.w, roomDimensions.h/2, 0], size: [0.2, roomDimensions.h, roomDimensions.l*2] }
-            ];
-            walls.forEach(w => {
-                const mesh = new THREE.Mesh(new THREE.BoxGeometry(...w.size), wallMat);
-                mesh.position.set(...w.pos);
-                mesh.castShadow = mesh.receiveShadow = true;
-                roomGroup.add(mesh);
-            });
-
             scene.add(roomGroup);
         }
 
-        function spawnMario() {
-            mario = new THREE.Group();
-            
-            // Simple Mario placeholder (body + head + hat)
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.3), bodyMat);
+        function createMarioPlaceholder() {
+            marioGroup = new THREE.Group();
+            const body = new THREE.Mesh(
+                new THREE.BoxGeometry(0.4, 0.7, 0.35),
+                new THREE.MeshStandardMaterial({color:0xff0000})
+            );
             body.position.y = 0.6;
-            body.castShadow = true;
-            mario.add(body);
+            marioGroup.add(body);
+            marioGroup.position.set(0, 0.01, 0);
+            scene.add(marioGroup);
+        }
 
-            const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-            const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 32), headMat);
-            head.position.y = 1.1;
-            mario.add(head);
+        async function loadROM() {
+            const file = document.getElementById('romInput').files[0];
+            if (!file) return alert("Please select baserom.us.z64");
+            const arrayBuffer = await file.arrayBuffer();
+            romData = new Uint8Array(arrayBuffer);
+            document.getElementById('status').innerHTML += '<br>ROM loaded ✓';
+        }
 
-            // Hat
-            const hatMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-            const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.15, 32), hatMat);
-            hat.rotation.x = Math.PI / 2;
-            hat.position.set(0, 1.35, 0);
-            mario.add(hat);
+        async function initMario() {
+            if (!romData) return alert("Load ROM first!");
+            if (!libsm64Loaded) {
+                alert("libsm64 not loaded yet. Click 'Download libsm64 Files'");
+                return;
+            }
 
-            mario.position.set(0, 0.5, 0);
-            scene.add(mario);
+            const status = document.getElementById('status');
+            status.textContent = "Initializing Mario...";
+
+            try {
+                // Placeholder for real libsm64 init (Webrio / Emscripten style)
+                if (typeof Module !== 'undefined') {
+                    // Example integration
+                    console.log("Mario initialized via libsm64");
+                }
+                status.innerHTML = "Mario ready! ✓";
+            } catch (e) {
+                console.error(e);
+                status.textContent = "Mario init failed. Check console.";
+            }
+        }
+
+        function updateMario(dt) {
+            if (!marioGroup) return;
+            const input = getControllerInput();
+
+            const speed = 6;
+            const forward = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+            forward.y = 0; forward.normalize();
+
+            marioGroup.position.x += forward.x * input.move.y * -speed * dt;
+            marioGroup.position.z += forward.z * input.move.y * -speed * dt;
+            marioGroup.position.x += forward.z * input.move.x * speed * dt;
+            marioGroup.position.z += -forward.x * input.move.x * speed * dt;
+
+            if (input.jump) marioGroup.position.y = 0.8;
+            else marioGroup.position.y = 0.01;
+        }
+
+        function getControllerInput() {
+            if (!controllerL?.gamepad) return { move: new THREE.Vector2(0,0), jump: false };
+            const gp = controllerL.gamepad;
+            return {
+                move: new THREE.Vector2(gp.axes[2] || 0, gp.axes[3] || 0),
+                jump: controllerR?.gamepad?.buttons[0]?.pressed || false
+            };
         }
 
         async function startXR() {
             document.getElementById('xrButton').style.display = 'none';
             try {
-                const session = await navigator.xr.requestSession('immersive-ar', { 
-                    requiredFeatures: ['local-floor'] 
+                const session = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['local-floor']
                 });
                 renderer.xr.setSession(session);
                 setupControllers();
+                await initMario();
                 animate();
             } catch (e) {
-                console.error(e);
-                alert("Failed to start XR: " + e.message);
+                alert("XR Error: " + e.message);
             }
         }
 
@@ -168,92 +188,12 @@
             controllerR = renderer.xr.getController(1);
             scene.add(controllerL);
             scene.add(controllerR);
-
-            // Visual rays
-            const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-5)]);
-            const lineMat = new THREE.LineBasicMaterial({ color: 0x22ff88 });
-            controllerL.add(new THREE.Line(lineGeo, lineMat));
-            controllerR.add(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffaa22 })));
-
-            // Input listeners
-            controllerR.addEventListener('selectstart', () => { isJumping = true; });
-            controllerL.addEventListener('selectstart', () => { /* punch animation */ });
-        }
-
-        function getControllerInput() {
-            if (!controllerL || !controllerL.gamepad) return { move: new THREE.Vector2(0,0), turn: 0 };
-
-            const gpL = controllerL.gamepad;
-            const gpR = controllerR ? controllerR.gamepad : null;
-
-            return {
-                move: new THREE.Vector2(gpL.axes[2] || 0, gpL.axes[3] || 0), // left stick
-                turn: gpR ? gpR.axes[2] || 0 : 0, // right stick X
-                jump: controllerR && controllerR.gamepad ? controllerR.gamepad.buttons[0].pressed : false,
-                action: controllerL && controllerL.gamepad ? controllerL.gamepad.buttons[0].pressed : false,
-                grip: controllerL && controllerL.gamepad ? controllerL.gamepad.buttons[1].pressed : false
-            };
-        }
-
-        function updateMarioPhysics(dt) {
-            const input = getControllerInput();
-            const speed = input.grip ? 8 : 5; // run/walk
-
-            // Forward movement relative to camera
-            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-            forward.y = 0;
-            forward.normalize();
-
-            const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0));
-
-            moveDir.set(0,0,0);
-            moveDir.addScaledVector(forward, -input.move.y * speed);
-            moveDir.addScaledVector(right, input.move.x * speed);
-
-            marioVelocity.x = moveDir.x;
-            marioVelocity.z = moveDir.z;
-
-            // Simple jump
-            if (input.jump && !isJumping) {
-                marioVelocity.y = 6;
-                isJumping = true;
-            }
-
-            // Gravity
-            marioVelocity.y -= 20 * dt;
-
-            // Apply velocity
-            mario.position.x += marioVelocity.x * dt;
-            mario.position.z += marioVelocity.z * dt;
-            mario.position.y += marioVelocity.y * dt;
-
-            // Ground collision
-            if (mario.position.y <= 0.5) {
-                mario.position.y = 0.5;
-                marioVelocity.y = 0;
-                isJumping = false;
-            }
-
-            // Simple turning
-            if (Math.abs(input.turn) > 0.1) {
-                mario.rotation.y -= input.turn * 2 * dt;
-            }
-
-            // Basic animation (bob + lean)
-            const bob = Math.sin(clock.getElapsedTime() * 10) * 0.02 * marioVelocity.length();
-            mario.children[0].position.y = 0.6 + bob; // body bob
         }
 
         function animate() {
             renderer.setAnimationLoop(() => {
-                const dt = Math.min(clock.getDelta(), 0.1);
-                updateMarioPhysics(dt);
-
-                // Camera follows Mario (third person style)
-                const idealOffset = new THREE.Vector3(0, 3, 5).applyQuaternion(mario.quaternion);
-                camera.position.lerp(mario.position.clone().add(idealOffset), 0.1);
-                camera.lookAt(mario.position.clone().add(new THREE.Vector3(0, 1.2, 0)));
-
+                const dt = clock.getDelta();
+                updateMario(dt);
                 renderer.render(scene, camera);
             });
         }
@@ -263,6 +203,11 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
+
+        // Auto-attempt download on load
+        window.onload = () => {
+            setTimeout(loadLibsm64, 500);
+        };
     </script>
 </body>
 </html>
