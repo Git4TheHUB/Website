@@ -2,679 +2,73 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MR Portal - Advanced Engineering Edition</title>
+    <title>Quest Controller</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #000; user-select: none; }
-        #ui { 
-            position: absolute; top: 10px; left: 10px; z-index: 100; 
-            background: rgba(10, 15, 20, 0.85); color: #e2e8f0; 
-            padding: 15px; border-radius: 8px; width: 320px; 
-            border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);
-            max-height: 90vh; overflow-y: auto;
-        }
-        h2 { margin: 0 0 10px 0; font-size: 16px; color: #38bdf8; text-transform: uppercase; }
-        .slider-group { margin-bottom: 10px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; }
-        label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; color: #94a3b8; }
-        input[type="range"] { width: 100%; accent-color: #38bdf8; }
-        button { 
-            background: #0284c7; color: white; border: none; border-radius: 4px; 
-            padding: 10px; width: 100%; font-weight: bold; cursor: pointer; margin-bottom: 8px;
-            transition: background 0.2s;
-        }
-        button:hover { background: #0369a1; }
-        
-        #btnScreenShare { background: #8b5cf6; border: 1px solid #a78bfa; }
-        #btnScreenShare:hover { background: #7c3aed; }
-        #btnDrawMode { background: #a855f7; border: 1px solid #c084fc; }
-        #btnDrawMode:hover { background: #9333ea; }
-
-        #xrButton {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 200;
-            padding: 15px 30px; font-size: 16px; font-weight: bold; text-transform: uppercase;
-            background: #f97316; color: white; border: none; border-radius: 8px; cursor: pointer;
-            box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
-        }
+        body { margin:0; background:#000; color:#0f0; font-family:monospace; }
+        canvas { display:block; }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <h2>System Override</h2>
-        <button id="btnScreenShare">🎥 Connect Live Screen Share</button>
-        <button id="btnDrawMode">🗺️ Toggle Advanced Draw Mode</button>
+    <div style="position:absolute;top:10px;left:10px;">Quest → Roblox Controller (Pythonista)</div>
+    <canvas id="game"></canvas>
 
-        <h2>Spatial Setup</h2>
-        <div class="slider-group">
-            <label><span>Room Width (X)</span><span id="valW">4.0m</span></label>
-            <input type="range" id="slW" min="2" max="10" step="0.2" value="4">
-        </div>
-        <div class="slider-group">
-            <label><span>Room Length (Z)</span><span id="valL">4.0m</span></label>
-            <input type="range" id="slL" min="2" max="10" step="0.2" value="4">
-        </div>
-        <div class="slider-group">
-            <label><span>Ceiling Height</span><span id="valH">2.8m</span></label>
-            <input type="range" id="slH" min="1.5" max="5" step="0.1" value="2.8">
-        </div>
-        <div class="slider-group">
-            <label><span>Surface Opacity</span><span id="valO">0.2</span></label>
-            <input type="range" id="slO" min="0" max="1" step="0.05" value="0.2">
-        </div>
-
-        <button id="btnResetCube">Respawn Companion Cube</button>
-        <button id="btnClear" style="background: #ef4444;">Clear Portals</button>
-        
-        <div style="margin-top:10px; font-size:11px; color:#64748b;">
-            <strong>VR Controls:</strong><br>
-            • R-Grip: Equip/Hold ASHPD Portal Gun<br>
-            • R-Trigger: Shoot Blue Portal (Requires Gun)<br>
-            • L-Trigger: Shoot Orange Portal (Requires Gun)<br>
-            • L-Grip: Zero-G Grab Companion Cube<br>
-            <strong>Draw Mode Active:</strong><br>
-            • L-Trigger: Cast & Drop Boundary Node on Floor
-        </div>
-    </div>
-
-    <button id="xrButton">Enter Mixed Reality</button>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-
+    <script src="https://unpkg.com/netplayjs@0.4.1/dist/netplay.js"></script>
     <script>
-        // --- GLOBALS ---
-        let scene, camera, renderer, audioCtx;
-        let roomGroup, roomDimensions = { w: 4, h: 2.8, l: 4 };
-        let surfaceOpacity = 0.2;
-        let clock = new THREE.Clock();
+        const RELAY_URL = "http://192.168.1.xxx:8080";  // ← Same IP as above
 
-        let controllerL, controllerR;
-        let gunModel, coreLightMat, isGunEquipped = false;
-        let portals = { blue: null, orange: null };
-        let projectiles = [];
-        let companionCube, cubeVel = new THREE.Vector3(0,0,0);
-        let isGrabbing = false;
-        
-        // Advanced Draw Mode Setup
-        let drawModeActive = false;
-        let boundaryNodes = [];
-        let nodeVisuals = [];
-
-        // Procedural Textures
-        let noiseNormalMap, concreteTexture, metalTexture, ellipseAlphaMap;
-
-        // Screen Share Variables
-        let screenVideo = document.createElement('video');
-        screenVideo.autoplay = true;
-        screenVideo.playsInline = true;
-        screenVideo.muted = true;
-        let screenTexture = null;
-
-        init();
-
-        // --- CORE SYSTEM SETUP ---
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.05, 100);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.xr.enabled = true;
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            document.body.appendChild(renderer.domElement);
-
-            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-            const mainLight = new THREE.DirectionalLight(0xffffff, 1.0);
-            mainLight.position.set(2, 5, 2);
-            mainLight.castShadow = true;
-            mainLight.shadow.mapSize.set(2048, 2048);
-            scene.add(mainLight);
-
-            generateProceduralTextures();
-            buildRoomBoundaries();
-            spawnCompanionCube();
-
-            // UI Listeners
-            document.getElementById('btnScreenShare').addEventListener('click', startScreenShare);
-            document.getElementById('btnDrawMode').addEventListener('click', toggleDrawMode);
-            
-            document.getElementById('slW').addEventListener('input', e => { roomDimensions.w = parseFloat(e.target.value); document.getElementById('valW').innerText = roomDimensions.w.toFixed(1)+'m'; if(!drawModeActive) updateRoom(); });
-            document.getElementById('slL').addEventListener('input', e => { roomDimensions.l = parseFloat(e.target.value); document.getElementById('valL').innerText = roomDimensions.l.toFixed(1)+'m'; if(!drawModeActive) updateRoom(); });
-            document.getElementById('slH').addEventListener('input', e => { roomDimensions.h = parseFloat(e.target.value); document.getElementById('valH').innerText = roomDimensions.h.toFixed(1)+'m'; updateRoom(); });
-            document.getElementById('slO').addEventListener('input', e => { surfaceOpacity = parseFloat(e.target.value); document.getElementById('valO').innerText = surfaceOpacity.toFixed(2); updateRoom(); });
-            
-            document.getElementById('btnResetCube').addEventListener('click', () => {
-                companionCube.position.set(0, 1, -1);
-                cubeVel.set(0,0,0);
-            });
-            document.getElementById('btnClear').addEventListener('click', () => {
-                if(portals.blue) scene.remove(portals.blue);
-                if(portals.orange) scene.remove(portals.orange);
-                portals = { blue: null, orange: null };
-            });
-
-            // XR Setup
-            const btnXR = document.getElementById('xrButton');
-            if (navigator.xr) {
-                navigator.xr.isSessionSupported('immersive-ar').then(sup => {
-                    if (sup) btnXR.addEventListener('click', startXR);
-                    else { btnXR.innerText = 'AR NOT SUPPORTED'; btnXR.disabled = true; }
-                });
+        class Controller extends netplayjs.Game {
+            constructor() {
+                super();
+                this.state = {moveX:0, moveZ:0, lookX:0, lookY:0, jump:false, primaryAction:false};
             }
 
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
-        }
+            tick(inputs) {
+                for (let [_, input] of inputs) {
+                    const k = input.keys || {};
+                    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
 
-        // --- SCREEN SHARE LOGIC ---
-        async function startScreenShare() {
-            const btn = document.getElementById('btnScreenShare');
-            try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-                screenVideo.srcObject = stream;
-                
-                screenTexture = new THREE.VideoTexture(screenVideo);
-                screenTexture.minFilter = THREE.LinearFilter;
-                screenTexture.magFilter = THREE.LinearFilter;
-                
-                btn.innerText = "✅ Screen Feed Active";
-                btn.style.background = "#22c55e"; 
-                btn.style.borderColor = "#16a34a";
-                
-                stream.getVideoTracks()[0].onended = () => {
-                    screenTexture = null;
-                    btn.innerText = "🎥 Connect Live Screen Share";
-                    btn.style.background = "#8b5cf6";
-                };
+                    let mx = (k['KeyD']||0) - (k['KeyA']||0);
+                    let mz = (k['KeyS']||0) - (k['KeyW']||0);
+                    let lx = (k['ArrowRight']||0) - (k['ArrowLeft']||0);
+                    let ly = (k['ArrowDown']||0) - (k['ArrowUp']||0);
 
-            } catch (err) {
-                console.error("Screen Share Error: ", err);
-            }
-        }
-
-        // --- ADVANCED QUEST-STYLE DRAW MODE ---
-        function toggleDrawMode() {
-            drawModeActive = !drawModeActive;
-            const btn = document.getElementById('btnDrawMode');
-            if(drawModeActive) {
-                btn.innerText = "⚠️ Draw Mode: ACTIVE (L-Trigger)";
-                btn.style.background = "#dc2626";
-                
-                if(roomGroup) scene.remove(roomGroup);
-                roomGroup = new THREE.Group();
-                scene.add(roomGroup);
-                
-                boundaryNodes = [];
-                nodeVisuals.forEach(n => scene.remove(n));
-                nodeVisuals = [];
-                
-                // Keep standard floor/ceiling physics baseline for safety
-                addGlobalFloorCeiling();
-            } else {
-                btn.innerText = "🗺️ Toggle Advanced Draw Mode";
-                btn.style.background = "#a855f7";
-                if(boundaryNodes.length < 3) {
-                    buildRoomBoundaries();
-                }
-            }
-        }
-
-        function addGlobalFloorCeiling() {
-            const mat = new THREE.MeshStandardMaterial({ map: concreteTexture, transparent: true, opacity: surfaceOpacity, roughness: 0.8, side: THREE.DoubleSide });
-            let floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), mat);
-            floor.rotation.x = -Math.PI/2;
-            floor.userData = { isWall: true, normal: new THREE.Vector3(0,1,0) };
-            roomGroup.add(floor);
-
-            let ceiling = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), mat);
-            ceiling.position.y = roomDimensions.h;
-            ceiling.rotation.x = Math.PI/2;
-            ceiling.userData = { isWall: true, normal: new THREE.Vector3(0,-1,0) };
-            roomGroup.add(ceiling);
-        }
-
-        function handleDrawModeCast() {
-            let pos = new THREE.Vector3();
-            controllerL.matrixWorld.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
-            let dir = new THREE.Vector3(0, 0, -1).applyQuaternion(controllerL.quaternion);
-            
-            if (Math.abs(dir.y) > 0.001) {
-                let t = -pos.y / dir.y;
-                if (t > 0) {
-                    let hitPoint = pos.clone().addScaledVector(dir, t);
-                    dropBoundaryNode(hitPoint);
-                }
-            }
-        }
-
-        function dropBoundaryNode(pt) {
-            boundaryNodes.push(pt.clone());
-            
-            let marker = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.08, 16), new THREE.MeshBasicMaterial({color: 0xa855f7}));
-            marker.position.copy(pt);
-            scene.add(marker);
-            nodeVisuals.push(marker);
-            
-            if (boundaryNodes.length >= 2) {
-                let p1 = boundaryNodes[boundaryNodes.length - 2];
-                let p2 = boundaryNodes[boundaryNodes.length - 1];
-                buildDynamicWallSegment(p1, p2);
-            }
-        }
-
-        function buildDynamicWallSegment(p1, p2) {
-            let dist = p1.distanceTo(p2);
-            let h = roomDimensions.h;
-            
-            let wallGeo = new THREE.PlaneGeometry(dist, h);
-            let mat = new THREE.MeshStandardMaterial({ map: concreteTexture, transparent: true, opacity: surfaceOpacity, roughness: 0.8, side: THREE.DoubleSide });
-            let wallMesh = new THREE.Mesh(wallGeo, mat);
-            
-            let midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-            wallMesh.position.set(midpoint.x, h/2, midpoint.z);
-            wallMesh.lookAt(p2.x, h/2, p2.z);
-            wallMesh.rotateY(Math.PI / 2);
-            
-            wallMesh.receiveShadow = true;
-            wallMesh.userData = { isWall: true, normal: new THREE.Vector3(0,0,1).applyEuler(wallMesh.rotation).normalize() };
-            
-            roomGroup.add(wallMesh);
-        }
-
-        // --- PROCEDURAL TEXTURE GENERATION ---
-        function generateProceduralTextures() {
-            const nCanv = document.createElement('canvas'); nCanv.width = nCanv.height = 256;
-            const nCtx = nCanv.getContext('2d');
-            const imgData = nCtx.createImageData(256, 256);
-            for (let i = 0; i < imgData.data.length; i += 4) {
-                imgData.data[i] = 128 + (Math.random() - 0.5) * 50;   
-                imgData.data[i+1] = 128 + (Math.random() - 0.5) * 50; 
-                imgData.data[i+2] = 255;                              
-                imgData.data[i+3] = 255;
-            }
-            nCtx.putImageData(imgData, 0, 0);
-            noiseNormalMap = new THREE.CanvasTexture(nCanv);
-            noiseNormalMap.wrapS = noiseNormalMap.wrapT = THREE.RepeatWrapping;
-
-            const cCanv = document.createElement('canvas'); cCanv.width = cCanv.height = 512;
-            const cCtx = cCanv.getContext('2d');
-            cCtx.fillStyle = '#475569'; cCtx.fillRect(0,0,512,512);
-            for(let i=0; i<5000; i++) {
-                cCtx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
-                cCtx.fillRect(Math.random()*512, Math.random()*512, 2+Math.random()*4, 2+Math.random()*4);
-            }
-            concreteTexture = new THREE.CanvasTexture(cCanv);
-            concreteTexture.wrapS = concreteTexture.wrapT = THREE.RepeatWrapping;
-            concreteTexture.repeat.set(4, 4);
-
-            const cbCanv = document.createElement('canvas'); cbCanv.width = cbCanv.height = 256;
-            const cbCtx = cbCanv.getContext('2d');
-            cbCtx.fillStyle = '#cbd5e1'; cbCtx.fillRect(0,0,256,256); 
-            cbCtx.beginPath(); cbCtx.arc(128, 128, 90, 0, Math.PI*2);
-            cbCtx.fillStyle = '#e2e8f0'; cbCtx.fill();
-            cbCtx.lineWidth = 4; cbCtx.strokeStyle = '#94a3b8'; cbCtx.stroke();
-            cbCtx.fillStyle = '#f472b6';
-            cbCtx.beginPath();
-            cbCtx.moveTo(128, 100);
-            cbCtx.bezierCurveTo(128, 80, 90, 80, 90, 110);
-            cbCtx.bezierCurveTo(90, 140, 128, 160, 128, 180);
-            cbCtx.bezierCurveTo(128, 160, 166, 140, 166, 110);
-            cbCtx.bezierCurveTo(166, 80, 128, 80, 128, 100);
-            cbCtx.fill();
-            metalTexture = new THREE.CanvasTexture(cbCanv);
-
-            // Procedural Clip Alpha Mask Canvas (Ellipse Optimization)
-            const aCanv = document.createElement('canvas'); aCanv.width = 256; aCanv.height = 256;
-            const aCtx = aCanv.getContext('2d');
-            aCtx.fillStyle = '#000000'; aCtx.fillRect(0, 0, 256, 256);
-            aCtx.fillStyle = '#ffffff';
-            aCtx.beginPath();
-            aCtx.ellipse(128, 128, 120, 120, 0, 0, Math.PI * 2);
-            aCtx.fill();
-            ellipseAlphaMap = new THREE.CanvasTexture(aCanv);
-        }
-
-        // --- ROOM SCENE ARCHITECTURE ---
-        function buildRoomBoundaries() {
-            if(roomGroup) scene.remove(roomGroup);
-            roomGroup = new THREE.Group();
-
-            const mat = new THREE.MeshStandardMaterial({ 
-                map: concreteTexture, transparent: true, opacity: surfaceOpacity, 
-                roughness: 0.8, side: THREE.DoubleSide
-            });
-
-            const {w, h, l} = roomDimensions;
-            const makeWall = (ww, hh, px, py, pz, rotX, rotY) => {
-                const mesh = new THREE.Mesh(new THREE.PlaneGeometry(ww, hh), mat);
-                mesh.position.set(px, py, pz);
-                mesh.rotation.set(rotX, rotY, 0);
-                mesh.receiveShadow = true;
-                mesh.userData = { isWall: true, normal: new THREE.Vector3(0,0,1).applyEuler(mesh.rotation).normalize() };
-                roomGroup.add(mesh);
-            };
-
-            makeWall(w, l, 0, 0, 0, -Math.PI/2, 0); 
-            makeWall(w, l, 0, h, 0, Math.PI/2, 0);  
-            makeWall(w, h, 0, h/2, -l/2, 0, 0);     
-            makeWall(w, h, 0, h/2, l/2, 0, Math.PI); 
-            makeWall(l, h, -w/2, h/2, 0, 0, Math.PI/2); 
-            makeWall(l, h, w/2, h/2, 0, 0, -Math.PI/2); 
-
-            scene.add(roomGroup);
-        }
-
-        function updateRoom() {
-            buildRoomBoundaries();
-        }
-
-        function spawnCompanionCube() {
-            companionCube = new THREE.Group();
-            const size = 0.25;
-
-            const coreMesh = new THREE.Mesh(
-                new THREE.BoxGeometry(size, size, size),
-                new THREE.MeshStandardMaterial({ map: metalTexture, roughness: 0.4, metalness: 0.3 })
-            );
-            coreMesh.castShadow = true; coreMesh.receiveShadow = true;
-            companionCube.add(coreMesh);
-
-            const edgeMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.6 });
-            const p = size/2;
-            const positions = [
-                [-p,-p,-p], [p,-p,-p], [-p,p,-p], [p,p,-p],
-                [-p,-p,p], [p,-p,p], [-p,p,p], [p,p,p]
-            ];
-            positions.forEach(pos => {
-                const corner = new THREE.Mesh(new THREE.BoxGeometry(size*0.3, size*0.3, size*0.3), edgeMat);
-                corner.position.set(...pos);
-                companionCube.add(corner);
-            });
-
-            companionCube.position.set(0, 1, -1);
-            scene.add(companionCube);
-        }
-
-        function buildGun() {
-            const gun = new THREE.Group();
-            const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.25, 16), new THREE.MeshStandardMaterial({color: 0xffffff, roughness: 0.2}));
-            shell.rotation.x = Math.PI/2; shell.position.z = -0.05; gun.add(shell);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.2, 16), new THREE.MeshStandardMaterial({color: 0x111111, roughness: 0.5}));
-            barrel.rotation.x = Math.PI/2; barrel.position.z = -0.2; gun.add(barrel);
-            coreLightMat = new THREE.MeshPhysicalMaterial({ color: 0x38bdf8, emissive: 0x0ea5e9, emissiveIntensity: 2, transmission: 0.9 });
-            const core = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.1, 16), coreLightMat);
-            core.rotation.x = Math.PI/2; core.position.set(0, 0.025, -0.08); gun.add(core);
-
-            for(let i=0; i<3; i++) {
-                const claw = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.01, 0.08), new THREE.MeshStandardMaterial({color:0x333333, metalness:0.8}));
-                const pivot = new THREE.Group();
-                claw.position.set(0, 0.035, -0.04);
-                pivot.rotation.z = (i * Math.PI * 2)/3;
-                pivot.position.z = -0.3;
-                pivot.add(claw); gun.add(pivot);
-            }
-            return gun;
-        }
-
-        // --- AUDIO ENGINE ---
-        function playSound(type) {
-            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const now = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            
-            if(type === 'blue' || type === 'orange') {
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(type==='blue'?150:110, now);
-                osc.frequency.exponentialRampToValueAtTime(type==='blue'?800:600, now+0.1);
-                gain.gain.setValueAtTime(0.3, now);
-                gain.gain.exponentialRampToValueAtTime(0.01, now+0.2);
-            } else if(type === 'teleport') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(300, now);
-                osc.frequency.exponentialRampToValueAtTime(1500, now+0.1);
-                gain.gain.setValueAtTime(0.4, now);
-                gain.gain.exponentialRampToValueAtTime(0.01, now+0.15);
-            }
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(now); osc.stop(now+0.2);
-        }
-
-        // --- WEBXR SYSTEMS & INTERACTION OVERHAUL ---
-        async function startXR() {
-            document.getElementById('xrButton').style.display = 'none';
-            try {
-                const session = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local-floor'] });
-                renderer.xr.setSession(session);
-                setupControllers();
-                animate();
-            } catch (err) {
-                alert("AR Start Failed: " + err.message);
-            }
-        }
-
-        function setupControllers() {
-            controllerL = renderer.xr.getController(0); scene.add(controllerL);
-            controllerR = renderer.xr.getController(1); scene.add(controllerR);
-
-            const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-10)]);
-            controllerL.add(new THREE.Line(geo, new THREE.LineBasicMaterial({color: 0xf97316, transparent:true, opacity:0.3})));
-            controllerR.add(new THREE.Line(geo, new THREE.LineBasicMaterial({color: 0x38bdf8, transparent:true, opacity:0.3})));
-
-            // Centralized Gun Equipping Logic via Right Hand Grip
-            controllerR.addEventListener('squeezestart', () => {
-                if(!gunModel) gunModel = buildGun();
-                controllerR.add(gunModel); 
-                gunModel.position.set(0, -0.02, -0.05);
-                isGunEquipped = true;
-            });
-            controllerR.addEventListener('squeezeend', () => { 
-                if(gunModel) controllerR.remove(gunModel); 
-                isGunEquipped = false;
-            });
-            
-            // Fire Mechanics Controlled Directly via Centralized Status Check
-            controllerR.addEventListener('selectstart', () => {
-                if(isGunEquipped) fireProjectile('blue');
-            });
-            
-            controllerL.addEventListener('selectstart', () => {
-                if(drawModeActive) {
-                    handleDrawModeCast();
-                } else if(isGunEquipped) {
-                    fireProjectile('orange');
-                }
-            });
-
-            // Zero-G Grab Companion Cube via Left Grip
-            controllerL.addEventListener('squeezestart', () => {
-                if(companionCube.position.distanceTo(controllerL.position) < 0.5) isGrabbing = true;
-            });
-            controllerL.addEventListener('squeezeend', () => {
-                if(isGrabbing) {
-                    isGrabbing = false;
-                    cubeVel.set(0,0,-2).applyQuaternion(controllerL.quaternion).multiplyScalar(4);
-                }
-            });
-        }
-
-        // --- MECHANICS ---
-        function fireProjectile(color) {
-            playSound(color);
-            if(gunModel) {
-                coreLightMat.color.setHex(color==='blue'?0x38bdf8:0xfb923c);
-                coreLightMat.emissive.setHex(color==='blue'?0x0ea5e9:0xea580c);
-            }
-
-            const proj = new THREE.Mesh(
-                new THREE.SphereGeometry(0.04, 16, 16),
-                new THREE.MeshBasicMaterial({color: color==='blue'?0x0ea5e9:0xf97316})
-            );
-            
-            // Mathematical transformation: Projectiles originate safely from right hand barrel tip
-            let barrelOffset = new THREE.Vector3(0, -0.02, -0.3);
-            barrelOffset.applyMatrix4(controllerR.matrixWorld);
-            proj.position.copy(barrelOffset);
-            
-            const dir = new THREE.Vector3(0,0,-1).applyQuaternion(controllerR.quaternion);
-            
-            proj.userData = { dir: dir, vel: 20, color: color, life: 2 };
-            scene.add(proj);
-            projectiles.push(proj);
-        }
-
-        function createPortal(color, pos, normal) {
-            if(portals[color]) scene.remove(portals[color]);
-
-            const portal = new THREE.Group();
-            portal.position.copy(pos).add(normal.clone().multiplyScalar(0.01)); 
-            portal.lookAt(pos.clone().add(normal));
-
-            let vortexMat;
-
-            // Engine Optimization: Ellipse Alpha masking system integration
-            if (screenTexture) {
-                vortexMat = new THREE.MeshStandardMaterial({ 
-                    map: screenTexture,
-                    alphaMap: ellipseAlphaMap,
-                    transparent: true,
-                    alphaTest: 0.1,
-                    roughness: 0.3,
-                    metalness: 0.1,
-                    emissive: 0xffffff,
-                    emissiveMap: screenTexture,
-                    emissiveIntensity: 0.25,
-                    side: THREE.DoubleSide 
-                });
-            } else {
-                vortexMat = new THREE.MeshPhysicalMaterial({
-                    transmission: 1.0, opacity: 1, metalness: 0, roughness: 0.1,
-                    ior: 1.8, thickness: 1.5, normalMap: noiseNormalMap, normalScale: new THREE.Vector2(0.5, 0.5),
-                    alphaMap: ellipseAlphaMap, transparent: true, alphaTest: 0.1,
-                    side: THREE.DoubleSide
-                });
-            }
-
-            const vortex = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1.2), vortexMat);
-            portal.add(vortex);
-
-            // Elliptical ring calculation via specific scale transforms (Removes black framing edges)
-            const borderMat = new THREE.MeshBasicMaterial({ color: color==='blue'?0x38bdf8:0xfb923c, side: THREE.DoubleSide });
-            const border = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 32), borderMat);
-            border.scale.set(0.4, 0.6, 1.0); 
-            portal.add(border);
-
-            const light = new THREE.PointLight(color==='blue'?0x0ea5e9:0xf97316, 2, 4);
-            light.position.z = 0.2;
-            portal.add(light);
-
-            portal.userData = { color: color, normal: normal, vortex: vortex };
-            scene.add(portal);
-            portals[color] = portal;
-        }
-
-        // --- CONTINUOUS COLLISION DETECTION & RENDERING LOOP ---
-        function animate() {
-            renderer.setAnimationLoop(() => {
-                const dt = Math.min(clock.getDelta(), 0.1);
-                const time = clock.getElapsedTime();
-
-                if (!screenTexture) {
-                    if(portals.blue) portals.blue.userData.vortex.material.normalMap.offset.set(time*0.2, time*0.2);
-                    if(portals.orange) portals.orange.userData.vortex.material.normalMap.offset.set(-time*0.2, time*0.1);
-                }
-
-                // Projectile CCD Loop
-                for(let i=projectiles.length-1; i>=0; i--) {
-                    let p = projectiles[i];
-                    let nextPos = p.position.clone().addScaledVector(p.userData.dir, p.userData.vel * dt);
-                    
-                    let hit = null;
-                    let ray = new THREE.Raycaster(p.position, p.userData.dir, 0, p.userData.vel * dt);
-                    let intersects = ray.intersectObjects(roomGroup.children);
-                    
-                    if(intersects.length > 0) hit = intersects[0];
-
-                    if(hit) {
-                        createPortal(p.userData.color, hit.point, hit.object.userData.normal);
-                        scene.remove(p); projectiles.splice(i,1);
-                    } else {
-                        p.position.copy(nextPos);
-                        p.userData.life -= dt;
-                        if(p.userData.life <= 0) { scene.remove(p); projectiles.splice(i,1); }
-                    }
-                }
-
-                // Companion Cube CCD Physics Framework
-                if(companionCube) {
-                    if(isGrabbing && controllerL) {
-                        companionCube.position.lerp(controllerL.position, 0.3);
-                        companionCube.quaternion.slerp(controllerL.quaternion, 0.3);
-                        cubeVel.set(0,0,0);
-                    } else {
-                        cubeVel.y -= 9.81 * dt; 
-                        if(cubeVel.length() > 15) cubeVel.multiplyScalar(15/cubeVel.length()); 
-
-                        let cubeRadius = 0.125;
-                        let rayDirection = cubeVel.clone().normalize();
-                        let rayLength = cubeVel.length() * dt;
-
-                        if(rayLength > 0) {
-                            let cubeRay = new THREE.Raycaster(companionCube.position, rayDirection, 0, rayLength + cubeRadius);
-                            
-                            // Portal CCD Interaction
-                            let portalIntersects = [];
-                            if(portals.blue) portalIntersects.push(...cubeRay.intersectObject(portals.blue.userData.vortex));
-                            if(portals.orange) portalIntersects.push(...cubeRay.intersectObject(portals.orange.userData.vortex));
-
-                            let teleMap = false;
-                            if(portalIntersects.length > 0 && portals.blue && portals.orange) {
-                                let hitVortex = portalIntersects[0].object;
-                                let entry = portals.blue.userData.vortex === hitVortex ? portals.blue : portals.orange;
-                                let exit = entry === portals.blue ? portals.orange : portals.blue;
-
-                                if(companionCube.position.distanceTo(entry.position) < 0.4) {
-                                    playSound('teleport');
-                                    
-                                    // Advanced Quaternion Delta Matrix calculations for strict conservation of linear momentum
-                                    let dynamicQuat = exit.quaternion.clone()
-                                        .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI))
-                                        .multiply(entry.quaternion.clone().invert());
-                                    
-                                    cubeVel.applyQuaternion(dynamicQuat);
-                                    companionCube.position.copy(exit.position).add(exit.userData.normal.clone().multiplyScalar(cubeRadius + 0.02));
-                                    teleMap = true;
-                                }
-                            }
-
-                            // Solid Physical Boundary Wall CCD Interaction
-                            if(!teleMap) {
-                                let wallIntersects = cubeRay.intersectObjects(roomGroup.children);
-                                if(wallIntersects.length > 0) {
-                                    let hitWall = wallIntersects[0];
-                                    let normal = hitWall.object.userData.normal || new THREE.Vector3(0,1,0);
-                                    
-                                    let dot = cubeVel.dot(normal);
-                                    cubeVel.addScaledVector(normal, -2 * dot * 0.4); // Restitution parameter
-                                    cubeVel.multiplyScalar(0.7); // Tangential friction
-                                    
-                                    companionCube.position.copy(hitWall.point).addScaledVector(normal, cubeRadius + 0.005);
-                                } else {
-                                    companionCube.position.addScaledVector(cubeVel, dt);
-                                }
-                            }
-                        } else {
-                            companionCube.position.addScaledVector(cubeVel, dt);
+                    // Quest Controller support
+                    for (let pad of pads) {
+                        if (pad && pad.axes) {
+                            mx = pad.axes[0];
+                            mz = pad.axes[1];
+                            lx = pad.axes[2];
+                            ly = pad.axes[3];
+                            this.state.jump = pad.buttons[0].pressed;           // A button
+                            this.state.primaryAction = pad.buttons[7].pressed; // Right trigger
                         }
                     }
-                }
 
-                renderer.render(scene, camera);
-            });
+                    this.state.moveX = mx;
+                    this.state.moveZ = mz;
+                    this.state.lookX = lx;
+                    this.state.lookY = ly;
+
+                    // Send to Pythonista
+                    fetch(RELAY_URL, {
+                        method: "POST",
+                        body: JSON.stringify(this.state)
+                    }).catch(() => {});
+                }
+            }
+
+            draw(c) {
+                const ctx = c.getContext("2d");
+                ctx.fillStyle = "#111";
+                ctx.fillRect(0,0,c.width,c.height);
+                ctx.fillStyle = "#0f0";
+                ctx.font = "24px monospace";
+                ctx.fillText("🎮 Quest Controller Active", 50, 100);
+            }
         }
+
+        Controller.timestep = 1000/60;
+        new netplayjs.RollbackWrapper(Controller).start();
     </script>
 </body>
-</html>                        
+</html>
