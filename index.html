@@ -3,169 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mario XR - Quest Controller (libsm64 Ready)</title>
+    <title>Backrooms MR - Level 0</title>
     <style>
-        body { margin:0; overflow:hidden; background:#000; font-family:Segoe UI,sans-serif; }
-        #ui { position:absolute; top:10px; left:10px; z-index:100; background:rgba(10,15,20,0.9); color:#e2e8f0; padding:15px; border-radius:8px; width:340px; }
-        button { background:#0284c7; color:white; border:none; border-radius:4px; padding:12px; width:100%; margin:8px 0; font-weight:bold; cursor:pointer; }
-        #status { margin-top:10px; font-size:13px; color:#4ade80; }
-        #progress { margin-top:8px; height:6px; background:#0284c7; width:0%; transition:width 0.3s; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
+        #ui { 
+            position: absolute; top: 10px; left: 10px; z-index: 100; 
+            background: rgba(15, 15, 20, 0.9); color: #ddd; padding: 15px; 
+            border-radius: 8px; width: 340px; border: 1px solid rgba(255,255,255,0.1);
+        }
+        button, input[type="range"] { margin: 8px 0; width: 100%; }
+        button { background: #ca8a04; color: white; border: none; padding: 12px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        button:hover { background: #a16207; }
+        #xrButton {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            padding: 16px 32px; font-size: 17px; font-weight: bold; background: #ca8a04; color: white;
+            border: none; border-radius: 8px; cursor: pointer; z-index: 200;
+        }
     </style>
 </head>
 <body>
     <div id="ui">
-        <h2>Mario XR Demo</h2>
-        <input type="file" id="romInput" accept=".z64" style="display:block;margin:10px 0;">
-        <button id="loadRomBtn">Load ROM & Start</button>
-        <button id="downloadLibBtn">Download libsm64 Files</button>
-        <div id="status">Waiting for libsm64 + ROM...</div>
-        <div id="progress"></div>
+        <h2 style="color:#fbbf24; margin-top:0;">Backrooms Level 0</h2>
+        <button id="btnClear">Reset Scene</button>
+        <div style="font-size:12px; color:#aaa; margin-top:10px;">
+            R-Grip: Toggle Flashlight<br>
+            L-Trigger: Add Wall Nodes
+        </div>
     </div>
 
-    <button id="xrButton" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);padding:15px 30px;font-size:18px;">Enter Mixed Reality</button>
+    <button id="xrButton">ENTER THE BACKROOMS</button>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.min.js"></script>
 
     <script>
         let scene, camera, renderer, clock;
-        let roomGroup, marioGroup, marioMesh;
+        let modelGroup, flashlight;
+        let isFlashlightOn = true;
         let controllerL, controllerR;
-        let romData = null;
-        let libsm64Loaded = false;
-        let positionBuffer, colorBuffer;
 
-        // Auto-load libsm64
-        async function loadLibsm64() {
-            const status = document.getElementById('status');
-            const progress = document.getElementById('progress');
-            
-            status.textContent = 'Downloading libsm64...';
-            progress.style.width = '30%';
-
-            try {
-                // Try to load from public sources or fallback
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/gh/zalo/libsm64-three@main/public/libsm64.js'; // Example public path (adjust if needed)
-                script.onload = () => {
-                    progress.style.width = '70%';
-                    status.innerHTML = 'libsm64.js loaded ✓<br>Waiting for WASM...';
-                    // WASM usually loads automatically via the JS glue
-                    libsm64Loaded = true;
-                    setTimeout(() => { progress.style.width = '100%'; }, 800);
-                };
-                document.head.appendChild(script);
-            } catch (e) {
-                status.textContent = 'Failed to auto-download. Please host files locally.';
-                console.error(e);
-            }
-        }
+        // Replace these URLs with your GitHub raw links
+        const MODEL_URL = 'https://raw.githubusercontent.com/Git4TheHUB/Website/refs/heads/main/scene.gltf';
+        const TEXTURE_BASE = 'https://raw.githubusercontent.com/Gut4TheHub/Website/refs/heads/main/Piece1_baseColor.png';
 
         init();
 
         function init() {
             clock = new THREE.Clock();
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
-            camera.position.set(0, 2, 5);
+            scene.fog = new THREE.Fog(0x554433, 10, 70);
 
-            renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(2, 1.6, 3); // Spawn position
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
             renderer.xr.enabled = true;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-            const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-            sun.position.set(5,10,5);
-            scene.add(sun);
+            // Lighting
+            scene.add(new THREE.AmbientLight(0xffeecc, 0.65));
+            const hemi = new THREE.HemisphereLight(0xffeecc, 0x332211, 0.4);
+            scene.add(hemi);
 
-            buildRoom();
-            createMarioPlaceholder();
-
-            document.getElementById('loadRomBtn').addEventListener('click', loadROM);
-            document.getElementById('downloadLibBtn').addEventListener('click', loadLibsm64);
-            document.getElementById('xrButton').addEventListener('click', startXR);
-
-            window.addEventListener('resize', onResize);
+            loadModel();
+            setupUI();
         }
 
-        function buildRoom() {
-            roomGroup = new THREE.Group();
-            const floor = new THREE.Mesh(
-                new THREE.PlaneGeometry(20,20),
-                new THREE.MeshStandardMaterial({color:0x475569, roughness:0.9})
-            );
-            floor.rotation.x = -Math.PI/2;
-            roomGroup.add(floor);
-            scene.add(roomGroup);
+        function loadModel() {
+            const loader = new THREE.GLTFLoader();
+            loader.load(MODEL_URL, (gltf) => {
+                modelGroup = gltf.scene;
+                
+                // Apply your textures to the model
+                modelGroup.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+
+                        if (child.material) {
+                            // You can assign specific textures based on material name if needed
+                            if (child.material.name.toLowerCase().includes('floor') || child.material.name.toLowerCase().includes('carpet')) {
+                                child.material.map = new THREE.TextureLoader().load(TEXTURE_BASE + 'NewCarpet_baseColor.png');
+                            }
+                            if (child.material.name.toLowerCase().includes('ceiling')) {
+                                child.material.map = new THREE.TextureLoader().load(TEXTURE_BASE + 'CeilingTile_baseColor.png');
+                            }
+                            if (child.material.name.toLowerCase().includes('wall')) {
+                                child.material.map = new THREE.TextureLoader().load(TEXTURE_BASE + 'IMG_1598.jpg');
+                            }
+                            child.material.needsUpdate = true;
+                        }
+                    }
+                });
+
+                scene.add(modelGroup);
+                console.log("Backrooms model loaded successfully");
+            }, undefined, (err) => {
+                console.error("Model load error:", err);
+            });
         }
 
-        function createMarioPlaceholder() {
-            marioGroup = new THREE.Group();
-            const body = new THREE.Mesh(
-                new THREE.BoxGeometry(0.4, 0.7, 0.35),
-                new THREE.MeshStandardMaterial({color:0xff0000})
-            );
-            body.position.y = 0.6;
-            marioGroup.add(body);
-            marioGroup.position.set(0, 0.01, 0);
-            scene.add(marioGroup);
-        }
+        function setupUI() {
+            document.getElementById('btnClear').addEventListener('click', () => {
+                if (modelGroup) modelGroup.position.set(0, 0, 0);
+            });
 
-        async function loadROM() {
-            const file = document.getElementById('romInput').files[0];
-            if (!file) return alert("Please select baserom.us.z64");
-            const arrayBuffer = await file.arrayBuffer();
-            romData = new Uint8Array(arrayBuffer);
-            document.getElementById('status').innerHTML += '<br>ROM loaded ✓';
-        }
-
-        async function initMario() {
-            if (!romData) return alert("Load ROM first!");
-            if (!libsm64Loaded) {
-                alert("libsm64 not loaded yet. Click 'Download libsm64 Files'");
-                return;
+            const xrBtn = document.getElementById('xrButton');
+            if (navigator.xr) {
+                navigator.xr.isSessionSupported('immersive-ar').then(supported => {
+                    if (supported) xrBtn.addEventListener('click', startXR);
+                });
             }
-
-            const status = document.getElementById('status');
-            status.textContent = "Initializing Mario...";
-
-            try {
-                // Placeholder for real libsm64 init (Webrio / Emscripten style)
-                if (typeof Module !== 'undefined') {
-                    // Example integration
-                    console.log("Mario initialized via libsm64");
-                }
-                status.innerHTML = "Mario ready! ✓";
-            } catch (e) {
-                console.error(e);
-                status.textContent = "Mario init failed. Check console.";
-            }
-        }
-
-        function updateMario(dt) {
-            if (!marioGroup) return;
-            const input = getControllerInput();
-
-            const speed = 6;
-            const forward = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
-            forward.y = 0; forward.normalize();
-
-            marioGroup.position.x += forward.x * input.move.y * -speed * dt;
-            marioGroup.position.z += forward.z * input.move.y * -speed * dt;
-            marioGroup.position.x += forward.z * input.move.x * speed * dt;
-            marioGroup.position.z += -forward.x * input.move.x * speed * dt;
-
-            if (input.jump) marioGroup.position.y = 0.8;
-            else marioGroup.position.y = 0.01;
-        }
-
-        function getControllerInput() {
-            if (!controllerL?.gamepad) return { move: new THREE.Vector2(0,0), jump: false };
-            const gp = controllerL.gamepad;
-            return {
-                move: new THREE.Vector2(gp.axes[2] || 0, gp.axes[3] || 0),
-                jump: controllerR?.gamepad?.buttons[0]?.pressed || false
-            };
         }
 
         async function startXR() {
@@ -176,24 +128,43 @@
                 });
                 renderer.xr.setSession(session);
                 setupControllers();
-                await initMario();
                 animate();
             } catch (e) {
-                alert("XR Error: " + e.message);
+                alert("Failed to start AR: " + e.message);
             }
         }
 
         function setupControllers() {
             controllerL = renderer.xr.getController(0);
             controllerR = renderer.xr.getController(1);
-            scene.add(controllerL);
-            scene.add(controllerR);
+            scene.add(controllerL, controllerR);
+
+            // Flashlight
+            flashlight = new THREE.SpotLight(0xffeebb, 6, 35, Math.PI / 3.5, 0.8, 2);
+            flashlight.castShadow = true;
+            flashlight.shadow.mapSize.set(1024, 1024);
+            controllerR.add(flashlight);
+
+            controllerR.addEventListener('squeezestart', () => {
+                isFlashlightOn = !isFlashlightOn;
+                flashlight.intensity = isFlashlightOn ? 6 : 0;
+            });
         }
 
         function animate() {
             renderer.setAnimationLoop(() => {
-                const dt = clock.getDelta();
-                updateMario(dt);
+                const delta = clock.getDelta();
+                const time = clock.getElapsedTime();
+
+                // Subtle old film / VHS effect
+                if (modelGroup) {
+                    modelGroup.traverse(child => {
+                        if (child.material && child.material.map) {
+                            child.material.map.offset.y = (time * 0.04) % 1;
+                        }
+                    });
+                }
+
                 renderer.render(scene, camera);
             });
         }
@@ -204,10 +175,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        // Auto-attempt download on load
-        window.onload = () => {
-            setTimeout(loadLibsm64, 500);
-        };
+        window.addEventListener('resize', onResize);
     </script>
 </body>
 </html>
