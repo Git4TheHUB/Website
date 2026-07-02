@@ -5,32 +5,88 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quest 3 Head Tracker</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 20px; background: #111; color: white; text-align: center; }
-    button { padding: 15px 30px; font-size: 18px; margin: 20px; background: #0066ff; color: white; border: none; border-radius: 10px; }
-    pre { background: #222; padding: 15px; border-radius: 8px; text-align: left; max-width: 600px; margin: 20px auto; }
+    body { 
+      font-family: system-ui, sans-serif; 
+      margin: 20px; 
+      background: #0a0a0a; 
+      color: white; 
+      text-align: center; 
+    }
+    button { 
+      padding: 18px 36px; 
+      font-size: 20px; 
+      margin: 20px; 
+      background: #0066ff; 
+      color: white; 
+      border: none; 
+      border-radius: 12px; 
+      cursor: pointer;
+    }
+    button:disabled { background: #555; }
+    pre { 
+      background: #222; 
+      padding: 15px; 
+      border-radius: 8px; 
+      text-align: left; 
+      max-width: 620px; 
+      margin: 20px auto; 
+      white-space: pre-wrap;
+    }
+    #status { margin: 15px; padding: 10px; border-radius: 8px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h1>Quest 3 Head Tracker!</h1>
-  <button onclick="startXR()">Enter Immersive VR Mode</button>
-  <pre id="pose">Waiting...</pre>
+  <h1>Quest 3 Head Tracker</h1>
+  
+  <div id="status">Connecting to Pythonista server...</div>
+  <button id="xrBtn" onclick="startXR()">Enter Immersive VR Mode</button>
+  <pre id="pose">Waiting for head tracking data...</pre>
 
   <script>
     const poseEl = document.getElementById('pose');
-    let serverUrl = 'http://192.168.1.22:8080';   // ←←← CHANGE THIS to your iPhone IP
+    const statusEl = document.getElementById('status');
+    const xrBtn = document.getElementById('xrBtn');
+    
+    // CHANGE THIS to your iPhone's local IP
+    let serverUrl = 'http://192.168.1.22:8080';
+    let isConnected = false;
+
+    // Test connection to Pythonista server
+    async function checkConnection() {
+      try {
+        const res = await fetch(serverUrl, { method: 'GET', cache: 'no-cache' });
+        if (res.ok) {
+          isConnected = true;
+          statusEl.textContent = "Connected to Pythonista server";
+          statusEl.style.background = "#004d00";
+        }
+      } catch (e) {
+        statusEl.textContent = "Cannot reach Pythonista server (check IP)";
+        statusEl.style.background = "#660000";
+        setTimeout(checkConnection, 3000);
+      }
+    }
 
     async function startXR() {
       if (!navigator.xr) {
-        alert("WebXR not supported on this browser.");
+        alert("WebXR is not supported in this browser.");
         return;
       }
+      
+      xrBtn.disabled = true;
+      xrBtn.textContent = "Starting Immersive Mode...";
+      
       try {
         const session = await navigator.xr.requestSession('immersive-vr', {
           requiredFeatures: ['local-floor']
         });
         
+        statusEl.textContent = "✅ Immersive VR Session Active";
+        statusEl.style.background = "#004d00";
+        
         const refSpace = await session.requestReferenceSpace('local-floor');
         
+        let frameCount = 0;
         session.requestAnimationFrame(function onFrame(time, frame) {
           const pose = frame.getViewerPose(refSpace);
           if (pose) {
@@ -38,23 +94,37 @@
             const quat = pose.transform.orientation;
             const data = {
               timestamp: Date.now(),
-              position: { x: pos.x, y: pos.y, z: pos.z },
-              orientation: { x: quat.x, y: quat.y, z: quat.z, w: quat.w }
+              position: { x: pos.x.toFixed(3), y: pos.y.toFixed(3), z: pos.z.toFixed(3) },
+              orientation: { x: quat.x.toFixed(3), y: quat.y.toFixed(3), z: quat.z.toFixed(3), w: quat.w.toFixed(3) }
             };
             
             poseEl.textContent = JSON.stringify(data, null, 2);
-            fetch(serverUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(data)
-            }).catch(() => {});
+            
+            // Send to Pythonista
+            if (isConnected) {
+              fetch(serverUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+              }).catch(() => {});
+            }
           }
+          
+          frameCount++;
           session.requestAnimationFrame(onFrame);
         });
+        
       } catch (err) {
-        alert("Failed to start Immersive mode:\n" + err.message);
+        console.error(err);
+        alert("Failed to start Immersive Mode:\n" + err.message + "\n\nMake sure you're in the Quest Browser and try again.");
+        xrBtn.disabled = false;
+        xrBtn.textContent = "Retry Immersive VR Mode";
       }
     }
+
+    // Start connection check
+    checkConnection();
+    setInterval(checkConnection, 5000);  // keep checking
   </script>
 </body>
 </html>
