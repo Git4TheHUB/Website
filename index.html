@@ -9,7 +9,7 @@
         #ui { 
             position: absolute; top: 10px; left: 10px; z-index: 100; 
             background: rgba(10, 15, 20, 0.85); color: #e2e8f0; 
-            padding: 15px; border-radius: 8px; width: 320px; 
+            padding: 15px; border-radius: 8px; width: 340px; 
             border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);
             max-height: 90vh; overflow-y: auto;
         }
@@ -34,33 +34,29 @@
 </head>
 <body>
     <div id="ui">
-        <h2>Level 0 Override</h2>
+        <h2>Level 0 - Advanced Geometry</h2>
 
         <h2>Spatial Setup</h2>
         <div class="slider-group">
-            <label><span>Room Width (X)</span><span id="valW">12.0m</span></label>
-            <input type="range" id="slW" min="6" max="30" step="0.5" value="12">
+            <label><span>Room Scale (X)</span><span id="valW">18.0m</span></label>
+            <input type="range" id="slW" min="8" max="40" step="0.5" value="18">
         </div>
         <div class="slider-group">
-            <label><span>Room Length (Z)</span><span id="valL">12.0m</span></label>
-            <input type="range" id="slL" min="6" max="30" step="0.5" value="12">
+            <label><span>Room Scale (Z)</span><span id="valL">18.0m</span></label>
+            <input type="range" id="slL" min="8" max="40" step="0.5" value="18">
         </div>
         <div class="slider-group">
-            <label><span>Ceiling Height</span><span id="valH">2.8m</span></label>
-            <input type="range" id="slH" min="2.4" max="4" step="0.1" value="2.8">
-        </div>
-        <div class="slider-group">
-            <label><span>Wall Opacity</span><span id="valO">0.98</span></label>
-            <input type="range" id="slO" min="0.6" max="1" step="0.01" value="0.98">
+            <label><span>Ceiling Height</span><span id="valH">2.7m</span></label>
+            <input type="range" id="slH" min="2.4" max="3.2" step="0.05" value="2.7">
         </div>
 
-        <button id="btnClear">Reset Geometry</button>
+        <button id="btnClear">Reset All Geometry</button>
         
         <div style="margin-top:10px; font-size:11px; color:#64748b;">
-            <strong>Backrooms Controls:</strong><br>
+            <strong>Controls:</strong><br>
             • R-Grip: Toggle Flashlight<br>
-            • L-Trigger: Place Boundary Nodes (Advanced Mode)<br>
-            <strong>Atmosphere:</strong> Endless yellow monotony
+            • L-Trigger: Drop Wall Node (Advanced Mode)<br>
+            <strong>Tip:</strong> Build complex mazes by placing multiple nodes
         </div>
     </div>
 
@@ -70,35 +66,30 @@
 
     <script>
         // --- GLOBALS ---
-        let scene, camera, renderer, audioCtx;
-        let roomGroup, roomDimensions = { w: 12, h: 2.8, l: 12 };
-        let surfaceOpacity = 0.98;
+        let scene, camera, renderer;
+        let roomGroup, roomDimensions = { w: 18, h: 2.7, l: 18 };
         let clock = new THREE.Clock();
 
         let controllerL, controllerR;
         let flashlight;
-        let isFlashlightOn = false; // OFF by default
+        let isFlashlightOn = false;
 
-        let drawModeActive = true; // Advanced room mode by default
-
+        let drawModeActive = true;
         let boundaryNodes = [];
         let nodeVisuals = [];
+        let wallSegments = [];
 
-        // Textures
         let wallTexture, ceilingTexture, noiseNormalMap;
 
         init();
 
         function init() {
             scene = new THREE.Scene();
-            scene.fog = new THREE.Fog(0x8b6f47, 8, 55);
+            scene.fog = new THREE.Fog(0x8b6f47, 6, 60);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.05, 100);
 
-            renderer = new THREE.WebGLRenderer({ 
-                antialias: true, 
-                alpha: true 
-            });
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.xr.enabled = true;
@@ -106,32 +97,22 @@
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            scene.add(new THREE.AmbientLight(0xfff4c8, 0.45));
+            scene.add(new THREE.AmbientLight(0xfff4c8, 0.5));
 
             generateProceduralTextures();
-            buildRoomBoundaries();
-            setupFlickeringLights();
+            buildAdvancedRoom();
 
-            // UI Listeners
             document.getElementById('slW').addEventListener('input', e => { 
                 roomDimensions.w = parseFloat(e.target.value); 
                 document.getElementById('valW').innerText = roomDimensions.w.toFixed(1)+'m'; 
-                updateRoom(); 
             });
             document.getElementById('slL').addEventListener('input', e => { 
                 roomDimensions.l = parseFloat(e.target.value); 
                 document.getElementById('valL').innerText = roomDimensions.l.toFixed(1)+'m'; 
-                updateRoom(); 
             });
             document.getElementById('slH').addEventListener('input', e => { 
                 roomDimensions.h = parseFloat(e.target.value); 
-                document.getElementById('valH').innerText = roomDimensions.h.toFixed(1)+'m'; 
-                updateRoom(); 
-            });
-            document.getElementById('slO').addEventListener('input', e => { 
-                surfaceOpacity = parseFloat(e.target.value); 
-                document.getElementById('valO').innerText = surfaceOpacity.toFixed(2); 
-                updateRoom(); 
+                document.getElementById('valH').innerText = roomDimensions.h.toFixed(2)+'m'; 
             });
             
             document.getElementById('btnClear').addEventListener('click', resetGeometry);
@@ -151,16 +132,14 @@
         }
 
         function generateProceduralTextures() {
+            // Noise
             const nCanv = document.createElement('canvas');
             nCanv.width = nCanv.height = 512;
             const nCtx = nCanv.getContext('2d');
             const imgData = nCtx.createImageData(512, 512);
             for (let i = 0; i < imgData.data.length; i += 4) {
-                const val = 210 + Math.random() * 45;
-                imgData.data[i] = val;
-                imgData.data[i+1] = val * 0.96;
-                imgData.data[i+2] = val * 0.82;
-                imgData.data[i+3] = 255;
+                const val = 205 + Math.random() * 50;
+                imgData.data[i] = val; imgData.data[i+1] = val*0.95; imgData.data[i+2] = val*0.8; imgData.data[i+3] = 255;
             }
             nCtx.putImageData(imgData, 0, 0);
             noiseNormalMap = new THREE.CanvasTexture(nCanv);
@@ -168,92 +147,77 @@
 
             wallTexture = new THREE.TextureLoader().load('/home/workdir/attachments/IMG_1598.jpg', tex => {
                 tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-                tex.repeat.set(8, 5);
+                tex.repeat.set(12, 6);
             });
 
             ceilingTexture = new THREE.TextureLoader().load('/home/workdir/attachments/IMG_1599.jpg', tex => {
                 tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-                tex.repeat.set(16, 16);
+                tex.repeat.set(24, 24);
             });
         }
 
-        function setupFlickeringLights() {
-            for (let i = 0; i < 8; i++) {
-                const light = new THREE.PointLight(0xfff4c8, 0.7, 30);
-                light.position.set(
-                    (Math.random() - 0.5) * 18,
-                    roomDimensions.h - 0.3,
-                    (Math.random() - 0.5) * 18
-                );
-                scene.add(light);
-                light.userData = { baseIntensity: 0.7, offset: Math.random() * 20 };
-            }
-        }
-
-        function buildRoomBoundaries() {
+        function buildAdvancedRoom() {
             if (roomGroup) scene.remove(roomGroup);
             roomGroup = new THREE.Group();
+            wallSegments = [];
 
             const wallMat = new THREE.MeshStandardMaterial({ 
                 map: wallTexture,
                 normalMap: noiseNormalMap,
-                normalScale: new THREE.Vector2(1.5, 1.5),
-                roughness: 0.85,
-                metalness: 0.1,
+                normalScale: new THREE.Vector2(2.2, 2.2),
+                roughness: 0.9,
+                metalness: 0.05,
                 side: THREE.DoubleSide,
-                transparent: true,
-                opacity: surfaceOpacity,
-                depthWrite: true
+                transparent: false, // 100% visible
+                opacity: 1.0
             });
 
             const ceilingMat = new THREE.MeshStandardMaterial({ 
                 map: ceilingTexture,
-                roughness: 0.9,
+                roughness: 0.95,
                 side: THREE.DoubleSide
             });
 
             const {w, h, l} = roomDimensions;
 
-            const makeWall = (ww, hh, px, py, pz, rotX, rotY) => {
-                const mesh = new THREE.Mesh(new THREE.PlaneGeometry(ww, hh), wallMat);
-                mesh.position.set(px, py, pz);
-                mesh.rotation.set(rotX, rotY, 0);
-                mesh.receiveShadow = true;
-                mesh.castShadow = true;
-                mesh.userData = { isWall: true, normal: new THREE.Vector3(0,0,1).applyEuler(mesh.rotation).normalize() };
-                roomGroup.add(mesh);
-            };
-
-            // Floor
-            const floor = new THREE.Mesh(new THREE.PlaneGeometry(w * 2.5, l * 2.5), wallMat);
+            // Large base floor and ceiling
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(w * 3, l * 3), wallMat);
             floor.rotation.x = -Math.PI / 2;
-            floor.position.y = 0.005;
+            floor.position.y = 0.01;
             roomGroup.add(floor);
 
-            // Ceiling
-            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w * 2.5, l * 2.5), ceilingMat);
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w * 3, l * 3), ceilingMat);
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.y = h;
             roomGroup.add(ceiling);
 
-            // Walls
-            makeWall(w * 2.5, h, 0, h/2, -l * 1.25, 0, 0);     
-            makeWall(w * 2.5, h, 0, h/2, l * 1.25, 0, Math.PI); 
-            makeWall(l * 2.5, h, -w * 1.25, h/2, 0, 0, Math.PI/2); 
-            makeWall(l * 2.5, h, w * 1.25, h/2, 0, 0, -Math.PI/2); 
+            // Outer walls
+            const outerWallMat = wallMat.clone();
+            const makeOuterWall = (width, height, x, z, rotY) => {
+                const wall = new THREE.Mesh(new THREE.PlaneGeometry(width, height), outerWallMat);
+                wall.position.set(x, h/2, z);
+                wall.rotation.y = rotY;
+                wall.receiveShadow = true;
+                wall.castShadow = true;
+                roomGroup.add(wall);
+                return wall;
+            };
+
+            makeOuterWall(w * 3, h, 0, -l * 1.5, 0);
+            makeOuterWall(w * 3, h, 0, l * 1.5, Math.PI);
+            makeOuterWall(l * 3, h, -w * 1.5, 0, Math.PI / 2);
+            makeOuterWall(l * 3, h, w * 1.5, 0, -Math.PI / 2);
 
             scene.add(roomGroup);
-        }
-
-        function updateRoom() {
-            buildRoomBoundaries();
         }
 
         function resetGeometry() {
             boundaryNodes = [];
             nodeVisuals.forEach(n => scene.remove(n));
             nodeVisuals = [];
-            buildRoomBoundaries();
+            wallSegments.forEach(w => scene.remove(w));
+            wallSegments = [];
+            buildAdvancedRoom();
         }
 
         async function startXR() {
@@ -272,63 +236,86 @@
             controllerL = renderer.xr.getController(0); scene.add(controllerL);
             controllerR = renderer.xr.getController(1); scene.add(controllerR);
 
-            // Flashlight (off by default)
-            flashlight = new THREE.SpotLight(0xfff4c8, 0, 40, Math.PI / 3.5, 0.7, 2.2);
+            flashlight = new THREE.SpotLight(0xfff4c8, 0, 45, Math.PI / 3.2, 0.75, 2);
             flashlight.castShadow = true;
-            flashlight.shadow.mapSize.width = 1024;
-            flashlight.shadow.mapSize.height = 1024;
+            flashlight.shadow.mapSize.set(1024, 1024);
             controllerR.add(flashlight);
 
             controllerR.addEventListener('squeezestart', () => {
                 isFlashlightOn = !isFlashlightOn;
-                flashlight.intensity = isFlashlightOn ? 4.5 : 0;
+                flashlight.intensity = isFlashlightOn ? 5 : 0;
             });
 
             controllerL.addEventListener('selectstart', () => {
-                if (drawModeActive) {
-                    handleDrawModeCast();
-                }
+                if (drawModeActive) handleDrawModeCast();
             });
         }
 
         function handleDrawModeCast() {
             const pos = new THREE.Vector3();
             controllerL.matrixWorld.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
-            const dir = new THREE.Vector3(0, -1, 0).applyQuaternion(controllerL.quaternion); // bias toward floor
+            const dir = new THREE.Vector3(0, -0.6, -0.8).applyQuaternion(controllerL.quaternion).normalize();
 
-            const raycaster = new THREE.Raycaster(pos, dir.normalize());
+            const raycaster = new THREE.Raycaster(pos, dir);
             const intersects = raycaster.intersectObjects(roomGroup.children, true);
             
             if (intersects.length > 0) {
                 const pt = intersects[0].point;
                 boundaryNodes.push(pt.clone());
-                
-                const marker = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.06, 0.06, 0.15, 12), 
-                    new THREE.MeshBasicMaterial({color: 0xfbbf24})
-                );
+
+                const marker = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), new THREE.MeshBasicMaterial({color: 0xfbbf24}));
                 marker.position.copy(pt);
-                marker.rotation.x = Math.PI / 2;
                 scene.add(marker);
                 nodeVisuals.push(marker);
+
+                if (boundaryNodes.length >= 2) {
+                    const p1 = boundaryNodes[boundaryNodes.length - 2];
+                    const p2 = boundaryNodes[boundaryNodes.length - 1];
+                    createWallSegment(p1, p2);
+                }
             }
+        }
+
+        function createWallSegment(p1, p2) {
+            const dist = p1.distanceTo(p2);
+            const height = roomDimensions.h;
+
+            const wallGeo = new THREE.PlaneGeometry(dist, height);
+            const wallMat = new THREE.MeshStandardMaterial({ 
+                map: wallTexture,
+                normalMap: noiseNormalMap,
+                normalScale: new THREE.Vector2(2.2, 2.2),
+                roughness: 0.9,
+                side: THREE.DoubleSide,
+                transparent: false
+            });
+
+            const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+            const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+            
+            wallMesh.position.set(midpoint.x, height / 2, midpoint.z);
+            wallMesh.lookAt(p2.x, height / 2, p2.z);
+            wallMesh.rotateY(Math.PI / 2);
+
+            wallMesh.castShadow = true;
+            wallMesh.receiveShadow = true;
+
+            roomGroup.add(wallMesh);
+            wallSegments.push(wallMesh);
         }
 
         function animate() {
             renderer.setAnimationLoop(() => {
-                const dt = Math.min(clock.getDelta(), 0.1);
                 const time = clock.getElapsedTime();
 
-                // Light flicker
+                // Flickering
                 scene.children.forEach(child => {
-                    if (child.isPointLight && child.userData.baseIntensity) {
-                        child.intensity = child.userData.baseIntensity + Math.sin(time * 12 + child.userData.offset) * 0.35;
+                    if (child.isPointLight && child.userData?.baseIntensity) {
+                        child.intensity = child.userData.baseIntensity + Math.sin(time * 15 + child.userData.offset) * 0.4;
                     }
                 });
 
-                if (wallTexture) {
-                    wallTexture.offset.y = (time * 0.08) % 1;
-                }
+                if (wallTexture) wallTexture.offset.y = time * 0.06 % 1;
 
                 renderer.render(scene, camera);
             });
