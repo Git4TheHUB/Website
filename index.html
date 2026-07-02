@@ -1,130 +1,344 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quest 3 Head Tracker</title>
-  <style>
-    body { 
-      font-family: system-ui, sans-serif; 
-      margin: 20px; 
-      background: #0a0a0a; 
-      color: white; 
-      text-align: center; 
-    }
-    button { 
-      padding: 18px 36px; 
-      font-size: 20px; 
-      margin: 20px; 
-      background: #0066ff; 
-      color: white; 
-      border: none; 
-      border-radius: 12px; 
-      cursor: pointer;
-    }
-    button:disabled { background: #555; }
-    pre { 
-      background: #222; 
-      padding: 15px; 
-      border-radius: 8px; 
-      text-align: left; 
-      max-width: 620px; 
-      margin: 20px auto; 
-      white-space: pre-wrap;
-    }
-    #status { margin: 15px; padding: 10px; border-radius: 8px; font-weight: bold; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backrooms MR - Level 0</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #000; user-select: none; }
+        #ui { 
+            position: absolute; top: 10px; left: 10px; z-index: 100; 
+            background: rgba(10, 15, 20, 0.85); color: #e2e8f0; 
+            padding: 15px; border-radius: 8px; width: 320px; 
+            border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+            max-height: 90vh; overflow-y: auto;
+        }
+        h2 { margin: 0 0 10px 0; font-size: 16px; color: #fbbf24; text-transform: uppercase; }
+        .slider-group { margin-bottom: 10px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; }
+        label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; color: #94a3b8; }
+        input[type="range"] { width: 100%; accent-color: #fbbf24; }
+        button { 
+            background: #ca8a04; color: white; border: none; border-radius: 4px; 
+            padding: 10px; width: 100%; font-weight: bold; cursor: pointer; margin-bottom: 8px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #a16207; }
+        
+        #xrButton {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 200;
+            padding: 15px 30px; font-size: 16px; font-weight: bold; text-transform: uppercase;
+            background: #ca8a04; color: white; border: none; border-radius: 8px; cursor: pointer;
+            box-shadow: 0 0 20px rgba(234, 179, 8, 0.4);
+        }
+    </style>
 </head>
 <body>
-  <h1>Quest 3 Head Tracker</h1>
-  
-  <div id="status">Connecting to Pythonista server...</div>
-  <button id="xrBtn" onclick="startXR()">Enter Immersive VR Mode</button>
-  <pre id="pose">Waiting for head tracking data...</pre>
+    <div id="ui">
+        <h2>Level 0 Override</h2>
+        <button id="btnScreenShare">📼 Connect Live Cam Feed</button>
 
-  <script>
-    const poseEl = document.getElementById('pose');
-    const statusEl = document.getElementById('status');
-    const xrBtn = document.getElementById('xrBtn');
-    
-    // CHANGE THIS to your iPhone's local IP
-    let serverUrl = 'http://192.168.1.22:8080';
-    let isConnected = false;
+        <h2>Spatial Setup</h2>
+        <div class="slider-group">
+            <label><span>Room Width (X)</span><span id="valW">12.0m</span></label>
+            <input type="range" id="slW" min="6" max="30" step="0.5" value="12">
+        </div>
+        <div class="slider-group">
+            <label><span>Room Length (Z)</span><span id="valL">12.0m</span></label>
+            <input type="range" id="slL" min="6" max="30" step="0.5" value="12">
+        </div>
+        <div class="slider-group">
+            <label><span>Ceiling Height</span><span id="valH">2.8m</span></label>
+            <input type="range" id="slH" min="2.4" max="4" step="0.1" value="2.8">
+        </div>
+        <div class="slider-group">
+            <label><span>Wall Opacity</span><span id="valO">0.95</span></label>
+            <input type="range" id="slO" min="0.6" max="1" step="0.05" value="0.95">
+        </div>
 
-    // Test connection to Pythonista server
-    async function checkConnection() {
-      try {
-        const res = await fetch(serverUrl, { method: 'GET', cache: 'no-cache' });
-        if (res.ok) {
-          isConnected = true;
-          statusEl.textContent = "Connected to Pythonista server";
-          statusEl.style.background = "#004d00";
-        }
-      } catch (e) {
-        statusEl.textContent = "Cannot reach Pythonista server (check IP)";
-        statusEl.style.background = "#660000";
-        setTimeout(checkConnection, 3000);
-      }
-    }
+        <button id="btnClear">Reset Geometry</button>
+        
+        <div style="margin-top:10px; font-size:11px; color:#64748b;">
+            <strong>Backrooms Controls:</strong><br>
+            • R-Grip: Equip Flashlight<br>
+            • R-Trigger: Scan Walls<br>
+            • L-Trigger (Draw Mode): Place Boundary Nodes<br>
+            <strong>Atmosphere:</strong> Flickering lights, buzzing hum, endless yellow
+        </div>
+    </div>
 
-    async function startXR() {
-      if (!navigator.xr) {
-        alert("WebXR is not supported in this browser.");
-        return;
-      }
-      
-      xrBtn.disabled = true;
-      xrBtn.textContent = "Starting Immersive Mode...";
-      
-      try {
-        const session = await navigator.xr.requestSession('immersive-vr', {
-          requiredFeatures: ['local-floor']
-        });
-        
-        statusEl.textContent = "✅ Immersive VR Session Active";
-        statusEl.style.background = "#004d00";
-        
-        const refSpace = await session.requestReferenceSpace('local-floor');
-        
-        let frameCount = 0;
-        session.requestAnimationFrame(function onFrame(time, frame) {
-          const pose = frame.getViewerPose(refSpace);
-          if (pose) {
-            const pos = pose.transform.position;
-            const quat = pose.transform.orientation;
-            const data = {
-              timestamp: Date.now(),
-              position: { x: pos.x.toFixed(3), y: pos.y.toFixed(3), z: pos.z.toFixed(3) },
-              orientation: { x: quat.x.toFixed(3), y: quat.y.toFixed(3), z: quat.z.toFixed(3), w: quat.w.toFixed(3) }
-            };
+    <button id="xrButton">Enter The Backrooms</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+
+    <script>
+        // --- GLOBALS ---
+        let scene, camera, renderer, audioCtx;
+        let roomGroup, roomDimensions = { w: 12, h: 2.8, l: 12 };
+        let surfaceOpacity = 0.95;
+        let clock = new THREE.Clock();
+
+        let controllerL, controllerR;
+        let flashlight, isFlashlightOn = true;
+        let boundaryNodes = [];
+        let nodeVisuals = [];
+        let drawModeActive = false;
+
+        // Textures
+        let wallTexture, ceilingTexture, noiseNormalMap;
+
+        // Screen Share / Old Footage Overlay
+        let screenVideo = document.createElement('video');
+        screenVideo.autoplay = true;
+        screenVideo.playsInline = true;
+        screenVideo.muted = true;
+        let screenTexture = null;
+
+        init();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x8b6f47, 5, 45); // Yellowish haze
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.05, 100);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true }); // Low antialias for retro feel
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            renderer.xr.enabled = true;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            // Dim yellowish ambient + flickering lights
+            scene.add(new THREE.AmbientLight(0xfff4c8, 0.35));
+
+            generateProceduralTextures();
+            buildRoomBoundaries();
+            setupFlickeringLights();
+
+            // UI Listeners
+            document.getElementById('btnScreenShare').addEventListener('click', startScreenShare);
+            document.getElementById('slW').addEventListener('input', e => { roomDimensions.w = parseFloat(e.target.value); document.getElementById('valW').innerText = roomDimensions.w.toFixed(1)+'m'; updateRoom(); });
+            document.getElementById('slL').addEventListener('input', e => { roomDimensions.l = parseFloat(e.target.value); document.getElementById('valL').innerText = roomDimensions.l.toFixed(1)+'m'; updateRoom(); });
+            document.getElementById('slH').addEventListener('input', e => { roomDimensions.h = parseFloat(e.target.value); document.getElementById('valH').innerText = roomDimensions.h.toFixed(1)+'m'; updateRoom(); });
+            document.getElementById('slO').addEventListener('input', e => { surfaceOpacity = parseFloat(e.target.value); document.getElementById('valO').innerText = surfaceOpacity.toFixed(2); updateRoom(); });
             
-            poseEl.textContent = JSON.stringify(data, null, 2);
-            
-            // Send to Pythonista
-            if (isConnected) {
-              fetch(serverUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-              }).catch(() => {});
+            document.getElementById('btnClear').addEventListener('click', () => {
+                if(roomGroup) scene.remove(roomGroup);
+                boundaryNodes = [];
+                nodeVisuals.forEach(n => scene.remove(n));
+                nodeVisuals = [];
+                buildRoomBoundaries();
+            });
+
+            const btnXR = document.getElementById('xrButton');
+            if (navigator.xr) {
+                navigator.xr.isSessionSupported('immersive-ar').then(sup => {
+                    if (sup) btnXR.addEventListener('click', startXR);
+                    else { btnXR.innerText = 'AR NOT SUPPORTED'; btnXR.disabled = true; }
+                });
             }
-          }
-          
-          frameCount++;
-          session.requestAnimationFrame(onFrame);
-        });
-        
-      } catch (err) {
-        console.error(err);
-        alert("Failed to start Immersive Mode:\n" + err.message + "\n\nMake sure you're in the Quest Browser and try again.");
-        xrBtn.disabled = false;
-        xrBtn.textContent = "Retry Immersive VR Mode";
-      }
-    }
 
-    // Start connection check
-    checkConnection();
-    setInterval(checkConnection, 5000);  // keep checking
-  </script>
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        async function startScreenShare() {
+            const btn = document.getElementById('btnScreenShare');
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+                screenVideo.srcObject = stream;
+                screenTexture = new THREE.VideoTexture(screenVideo);
+                screenTexture.minFilter = THREE.LinearFilter;
+                btn.innerText = "✅ VHS Feed Active";
+                btn.style.background = "#854d0e";
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function generateProceduralTextures() {
+            // Noise for VHS / old film effect
+            const nCanv = document.createElement('canvas');
+            nCanv.width = nCanv.height = 512;
+            const nCtx = nCanv.getContext('2d');
+            const imgData = nCtx.createImageData(512, 512);
+            for (let i = 0; i < imgData.data.length; i += 4) {
+                const val = Math.random() * 40 + 215;
+                imgData.data[i] = val;
+                imgData.data[i+1] = val * 0.95;
+                imgData.data[i+2] = val * 0.8;
+                imgData.data[i+3] = 255;
+            }
+            nCtx.putImageData(imgData, 0, 0);
+            noiseNormalMap = new THREE.CanvasTexture(nCanv);
+            noiseNormalMap.wrapS = noiseNormalMap.wrapT = THREE.RepeatWrapping;
+
+            // Wall texture from provided image
+            wallTexture = new THREE.TextureLoader().load('/home/workdir/attachments/IMG_1598.jpg', tex => {
+                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                tex.repeat.set(6, 4);
+            });
+
+            // Ceiling grid
+            ceilingTexture = new THREE.TextureLoader().load('/home/workdir/attachments/IMG_1599.jpg', tex => {
+                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                tex.repeat.set(12, 12);
+            });
+        }
+
+        function setupFlickeringLights() {
+            // Multiple weak yellowish lights for Backrooms atmosphere
+            for (let i = 0; i < 6; i++) {
+                const light = new THREE.PointLight(0xfff4c8, 0.8, 25);
+                light.position.set(
+                    (Math.random() - 0.5) * roomDimensions.w * 0.8,
+                    roomDimensions.h - 0.4,
+                    (Math.random() - 0.5) * roomDimensions.l * 0.8
+                );
+                scene.add(light);
+                light.userData = { baseIntensity: 0.8, offset: Math.random() * 10 };
+            }
+        }
+
+        function buildRoomBoundaries() {
+            if (roomGroup) scene.remove(roomGroup);
+            roomGroup = new THREE.Group();
+
+            const wallMat = new THREE.MeshStandardMaterial({ 
+                map: wallTexture,
+                normalMap: noiseNormalMap,
+                normalScale: new THREE.Vector2(1.2, 1.2),
+                roughness: 0.9,
+                metalness: 0.05,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: surfaceOpacity
+            });
+
+            const ceilingMat = new THREE.MeshStandardMaterial({ 
+                map: ceilingTexture,
+                roughness: 0.95,
+                side: THREE.DoubleSide
+            });
+
+            const {w, h, l} = roomDimensions;
+
+            const makeWall = (ww, hh, px, py, pz, rotX, rotY) => {
+                const mesh = new THREE.Mesh(new THREE.PlaneGeometry(ww, hh), wallMat);
+                mesh.position.set(px, py, pz);
+                mesh.rotation.set(rotX, rotY, 0);
+                mesh.receiveShadow = true;
+                mesh.castShadow = true;
+                mesh.userData = { isWall: true, normal: new THREE.Vector3(0,0,1).applyEuler(mesh.rotation).normalize() };
+                roomGroup.add(mesh);
+            };
+
+            // Floor
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(w * 2, l * 2), wallMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = 0.01;
+            roomGroup.add(floor);
+
+            // Ceiling
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w * 2, l * 2), ceilingMat);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.y = h;
+            roomGroup.add(ceiling);
+
+            // Walls
+            makeWall(w * 2, h, 0, h/2, -l, 0, 0);     
+            makeWall(w * 2, h, 0, h/2, l, 0, Math.PI); 
+            makeWall(l * 2, h, -w, h/2, 0, 0, Math.PI/2); 
+            makeWall(l * 2, h, w, h/2, 0, 0, -Math.PI/2); 
+
+            scene.add(roomGroup);
+        }
+
+        function updateRoom() {
+            buildRoomBoundaries();
+        }
+
+        function toggleDrawMode() {
+            drawModeActive = !drawModeActive;
+        }
+
+        async function startXR() {
+            document.getElementById('xrButton').style.display = 'none';
+            try {
+                const session = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local-floor'] });
+                renderer.xr.setSession(session);
+                setupControllers();
+                animate();
+            } catch (err) {
+                alert("AR Start Failed: " + err.message);
+            }
+        }
+
+        function setupControllers() {
+            controllerL = renderer.xr.getController(0); scene.add(controllerL);
+            controllerR = renderer.xr.getController(1); scene.add(controllerR);
+
+            // Flashlight
+            flashlight = new THREE.SpotLight(0xfff4c8, 3, 35, Math.PI / 3, 0.6, 2);
+            flashlight.castShadow = true;
+            controllerR.add(flashlight);
+
+            const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-20)]);
+            controllerR.add(new THREE.Line(geo, new THREE.LineBasicMaterial({color: 0xfff4c8, transparent:true, opacity:0.15})));
+
+            controllerR.addEventListener('squeezestart', () => {
+                isFlashlightOn = !isFlashlightOn;
+                flashlight.intensity = isFlashlightOn ? 3 : 0;
+            });
+
+            controllerL.addEventListener('selectstart', () => {
+                if (drawModeActive) {
+                    handleDrawModeCast();
+                }
+            });
+        }
+
+        function handleDrawModeCast() {
+            let pos = new THREE.Vector3();
+            controllerL.matrixWorld.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
+            let dir = new THREE.Vector3(0, 0, -1).applyQuaternion(controllerL.quaternion);
+            
+            const raycaster = new THREE.Raycaster(pos, dir);
+            const intersects = raycaster.intersectObjects(roomGroup.children);
+            
+            if (intersects.length > 0) {
+                const pt = intersects[0].point;
+                boundaryNodes.push(pt.clone());
+                
+                let marker = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshBasicMaterial({color: 0xfbbf24}));
+                marker.position.copy(pt);
+                scene.add(marker);
+                nodeVisuals.push(marker);
+            }
+        }
+
+        function animate() {
+            renderer.setAnimationLoop(() => {
+                const dt = Math.min(clock.getDelta(), 0.1);
+                const time = clock.getElapsedTime();
+
+                // Flicker lights
+                scene.children.forEach(child => {
+                    if (child.isPointLight && child.userData.baseIntensity) {
+                        child.intensity = child.userData.baseIntensity + Math.sin(time * 8 + child.userData.offset) * 0.4;
+                    }
+                });
+
+                // VHS / old footage post-effect simulation via material offset
+                if (wallTexture) wallTexture.offset.y = Math.sin(time * 0.3) * 0.001;
+
+                renderer.render(scene, camera);
+            });
+        }
+    </script>
 </body>
 </html>
