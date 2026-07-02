@@ -49,7 +49,7 @@
     <br>
     <div id="log">Status: Initializing...</div>
 
-    <script>
+  <script>
         const RELAY_URL = "http://192.168.1.22:8080/quest";
         const vrButton = document.getElementById('vr-button');
         const logDiv = document.getElementById('log');
@@ -61,23 +61,32 @@
             console.log(msg);
         }
 
-        // Check if WebXR is supported
-        if (navigator.xr) {
+        // 1. Check for Strict Secure Context (The reason it hung before)
+        if (!window.isSecureContext) {
+            vrButton.innerText = "SECURITY BLOCK";
+            log("BLOCKED: Quest requires HTTPS for VR. To fix: Go to chrome://flags in the Quest Browser, search 'Insecure origins treated as secure', add http://192.168.1.22:8080, enable it, and relaunch.");
+        } 
+        // 2. Check if WebXR is supported
+        else if (navigator.xr) {
             navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
                 if (supported) {
                     vrButton.disabled = false;
                     vrButton.innerText = "ENTER IMMERSIVE VR MODE";
                     log("Ready to enter immersive mode.");
                 } else {
-                    log("Error: Immersive VR mode not supported on this browser.");
+                    vrButton.innerText = "VR UNAVAILABLE";
+                    log("Error: Immersive VR mode not supported on this device.");
                 }
+            }).catch(err => {
+                log("Error checking VR support: " + err);
             });
         } else {
-            log("Error: WebXR API not detected.");
+            vrButton.innerText = "WEBXR MISSING";
+            log("Error: WebXR API not detected in this browser.");
         }
 
         vrButton.addEventListener('click', () => {
-            if (!xrSession) {
+            if (!xrSession && !vrButton.disabled) {
                 navigator.xr.requestSession('immersive-vr', {
                     requiredFeatures: ['local-floor']
                 }).then(onSessionStarted).catch(err => log("Session Failed: " + err));
@@ -89,11 +98,9 @@
             vrButton.innerText = "EXIT IMMERSIVE MODE";
             log("In Immersive VR Mode. Readout Active.");
             
-            // WebXR loop requires a reference space
             session.requestReferenceSpace('local-floor').then((refSpace) => {
                 session.requestAnimationFrame(function onXRFrame(time, frame) {
                     if (!xrSession) return;
-                    
                     readControllers(session);
                     xrSession.requestAnimationFrame(onXRFrame);
                 });
@@ -101,16 +108,8 @@
         }
 
         function readControllers(session) {
-            let payload = {
-                moveX: 0,
-                moveZ: 0,
-                lookX: 0,
-                lookY: 0,
-                jump: false,
-                primaryAction: false
-            };
+            let payload = { moveX: 0, moveZ: 0, lookX: 0, lookY: 0, jump: false, primaryAction: false };
 
-            // Iterate over active hand tracking controllers
             for (let inputSource of session.inputSources) {
                 if (inputSource.gamepad) {
                     const axes = inputSource.gamepad.axes;
@@ -118,41 +117,26 @@
                     const hand = inputSource.handedness;
 
                     if (hand === 'left') {
-                        // Left Stick maps to Movement Translation
                         payload.moveX = axes[2] || 0; 
                         payload.moveZ = axes[3] || 0;
                     } 
                     else if (hand === 'right') {
-                        // Right Stick maps to Camera/Orientation Rotation
                         payload.lookX = axes[2] || 0;
                         payload.lookY = axes[3] || 0;
-                        
-                        // Primary Face Button (A button on right touch controller) maps to Jump
-                        if (buttons[4] && buttons[4].pressed) {
-                            payload.jump = true;
-                        }
-                        // Trigger button maps to Primary Action
-                        if (buttons[0] && buttons[0].pressed) {
-                            payload.primaryAction = true;
-                        }
+                        if (buttons[4] && buttons[4].pressed) payload.jump = true;
+                        if (buttons[0] && buttons[0].pressed) payload.primaryAction = true;
                     }
                 }
             }
-
             sendData(payload);
         }
 
         function sendData(payload) {
-            // Only fire data out if input exists to avoid filling the network buffer
             fetch(RELAY_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
-            })
-            .then(() => {
-                log(`Sending Data:\nLX: ${payload.moveX.toFixed(2)} | LZ: ${payload.moveZ.toFixed(2)}\nRX: ${payload.lookX.toFixed(2)} | Jump: ${payload.jump}`);
-            })
-            .catch(err => console.all("Network drop: ", err));
+            }).catch(err => console.log("Network drop: ", err));
         }
     </script>
 </body>
