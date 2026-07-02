@@ -3,322 +3,265 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Backrooms MR - Level 0</title>
+    <title>Mario XR - Quest Controller Demo</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #000; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
         #ui { 
             position: absolute; top: 10px; left: 10px; z-index: 100; 
-            background: rgba(10, 15, 20, 0.85); color: #e2e8f0; 
-            padding: 15px; border-radius: 8px; width: 340px; 
-            border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);
-            max-height: 90vh; overflow-y: auto;
+            background: rgba(10, 15, 20, 0.9); color: #e2e8f0; 
+            padding: 15px; border-radius: 8px; width: 300px; 
+            border: 1px solid rgba(255,255,255,0.1);
         }
-        h2 { margin: 0 0 10px 0; font-size: 16px; color: #fbbf24; text-transform: uppercase; }
-        .slider-group { margin-bottom: 10px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; }
-        label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; color: #94a3b8; }
-        input[type="range"] { width: 100%; accent-color: #fbbf24; }
         button { 
-            background: #ca8a04; color: white; border: none; border-radius: 4px; 
-            padding: 10px; width: 100%; font-weight: bold; cursor: pointer; margin-bottom: 8px;
-            transition: background 0.2s;
+            background: #0284c7; color: white; border: none; border-radius: 4px; 
+            padding: 12px; width: 100%; margin: 8px 0; font-weight: bold; cursor: pointer;
         }
-        button:hover { background: #a16207; }
-        
         #xrButton {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 200;
-            padding: 15px 30px; font-size: 16px; font-weight: bold; text-transform: uppercase;
-            background: #ca8a04; color: white; border: none; border-radius: 8px; cursor: pointer;
-            box-shadow: 0 0 20px rgba(234, 179, 8, 0.4);
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 200;
+            padding: 15px 40px; font-size: 18px; font-weight: bold;
+            background: #f97316; color: white; border: none; border-radius: 8px; cursor: pointer;
         }
     </style>
 </head>
 <body>
     <div id="ui">
-        <h2>Level 0 - Advanced Geometry</h2>
-
-        <h2>Spatial Setup</h2>
-        <div class="slider-group">
-            <label><span>Room Scale (X)</span><span id="valW">18.0m</span></label>
-            <input type="range" id="slW" min="8" max="40" step="0.5" value="18">
-        </div>
-        <div class="slider-group">
-            <label><span>Room Scale (Z)</span><span id="valL">18.0m</span></label>
-            <input type="range" id="slL" min="8" max="40" step="0.5" value="18">
-        </div>
-        <div class="slider-group">
-            <label><span>Ceiling Height</span><span id="valH">2.7m</span></label>
-            <input type="range" id="slH" min="2.4" max="3.2" step="0.05" value="2.7">
-        </div>
-
-        <button id="btnClear">Reset All Geometry</button>
-        
-        <div style="margin-top:10px; font-size:11px; color:#64748b;">
-            <strong>Controls:</strong><br>
-            • R-Grip: Toggle Flashlight<br>
-            • L-Trigger: Drop Wall Node (Advanced Mode)<br>
-            <strong>Tip:</strong> Build complex mazes by placing multiple nodes
-        </div>
+        <h2>Mario XR Demo</h2>
+        <p><strong>Quest Controls:</strong><br>
+        • Left Stick: Move Mario<br>
+        • Right Stick: Camera / Turn<br>
+        • Right Trigger: Jump<br>
+        • Left Trigger: Punch / Action<br>
+        • Grips: Crouch / Run</p>
+        <button id="btnReset">Respawn Mario</button>
     </div>
 
-    <button id="xrButton">Enter The Backrooms</button>
+    <button id="xrButton">Enter Mixed Reality (Quest)</button>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 
     <script>
-        // --- GLOBALS ---
-        let scene, camera, renderer;
-        let roomGroup, roomDimensions = { w: 18, h: 2.7, l: 18 };
-        let clock = new THREE.Clock();
-
+        // ==================== GLOBALS ====================
+        let scene, camera, renderer, clock;
+        let roomGroup;
+        let mario, marioVelocity = new THREE.Vector3();
+        let isJumping = false, isCrouching = false;
         let controllerL, controllerR;
-        let flashlight;
-        let isFlashlightOn = false;
-
-        let drawModeActive = true;
-        let boundaryNodes = [];
-        let nodeVisuals = [];
-        let wallSegments = [];
-
-        let wallTexture, ceilingTexture, noiseNormalMap;
+        let moveDir = new THREE.Vector3();
+        let roomDimensions = { w: 8, h: 3, l: 8 };
 
         init();
 
         function init() {
+            clock = new THREE.Clock();
             scene = new THREE.Scene();
-            scene.fog = new THREE.Fog(0x8b6f47, 6, 60);
-
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.05, 100);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 1.6, 3);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.xr.enabled = true;
             renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            scene.add(new THREE.AmbientLight(0xfff4c8, 0.5));
+            // Lights
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+            dirLight.position.set(5, 10, 5);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
 
-            generateProceduralTextures();
-            buildAdvancedRoom();
+            buildRoom();
+            spawnMario();
 
-            document.getElementById('slW').addEventListener('input', e => { 
-                roomDimensions.w = parseFloat(e.target.value); 
-                document.getElementById('valW').innerText = roomDimensions.w.toFixed(1)+'m'; 
+            // UI
+            document.getElementById('btnReset').addEventListener('click', () => {
+                mario.position.set(0, 0.5, 0);
+                marioVelocity.set(0,0,0);
             });
-            document.getElementById('slL').addEventListener('input', e => { 
-                roomDimensions.l = parseFloat(e.target.value); 
-                document.getElementById('valL').innerText = roomDimensions.l.toFixed(1)+'m'; 
-            });
-            document.getElementById('slH').addEventListener('input', e => { 
-                roomDimensions.h = parseFloat(e.target.value); 
-                document.getElementById('valH').innerText = roomDimensions.h.toFixed(2)+'m'; 
-            });
-            
-            document.getElementById('btnClear').addEventListener('click', resetGeometry);
 
-            const btnXR = document.getElementById('xrButton');
+            const xrBtn = document.getElementById('xrButton');
             if (navigator.xr) {
                 navigator.xr.isSessionSupported('immersive-ar').then(sup => {
-                    if (sup) btnXR.addEventListener('click', startXR);
+                    if (sup) xrBtn.addEventListener('click', startXR);
                 });
             }
 
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
+            window.addEventListener('resize', onResize);
         }
 
-        function generateProceduralTextures() {
-            // Noise
-            const nCanv = document.createElement('canvas');
-            nCanv.width = nCanv.height = 512;
-            const nCtx = nCanv.getContext('2d');
-            const imgData = nCtx.createImageData(512, 512);
-            for (let i = 0; i < imgData.data.length; i += 4) {
-                const val = 205 + Math.random() * 50;
-                imgData.data[i] = val; imgData.data[i+1] = val*0.95; imgData.data[i+2] = val*0.8; imgData.data[i+3] = 255;
-            }
-            nCtx.putImageData(imgData, 0, 0);
-            noiseNormalMap = new THREE.CanvasTexture(nCanv);
-            noiseNormalMap.wrapS = noiseNormalMap.wrapT = THREE.RepeatWrapping;
-
-            wallTexture = new THREE.TextureLoader().load('/home/workdir/attachments/IMG_1598.jpg', tex => {
-                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-                tex.repeat.set(12, 6);
-            });
-
-            ceilingTexture = new THREE.TextureLoader().load('/home/workdir/attachments/IMG_1599.jpg', tex => {
-                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-                tex.repeat.set(24, 24);
-            });
-        }
-
-        function buildAdvancedRoom() {
+        function buildRoom() {
             if (roomGroup) scene.remove(roomGroup);
             roomGroup = new THREE.Group();
-            wallSegments = [];
 
-            const wallMat = new THREE.MeshStandardMaterial({ 
-                map: wallTexture,
-                normalMap: noiseNormalMap,
-                normalScale: new THREE.Vector2(2.2, 2.2),
-                roughness: 0.9,
-                metalness: 0.05,
-                side: THREE.DoubleSide,
-                transparent: false, // 100% visible
-                opacity: 1.0
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: 0x475569, roughness: 0.8, metalness: 0.2 
             });
 
-            const ceilingMat = new THREE.MeshStandardMaterial({ 
-                map: ceilingTexture,
-                roughness: 0.95,
-                side: THREE.DoubleSide
-            });
-
-            const {w, h, l} = roomDimensions;
-
-            // Large base floor and ceiling
-            const floor = new THREE.Mesh(new THREE.PlaneGeometry(w * 3, l * 3), wallMat);
+            // Floor
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomDimensions.w * 2, roomDimensions.l * 2), mat);
             floor.rotation.x = -Math.PI / 2;
-            floor.position.y = 0.01;
+            floor.receiveShadow = true;
             roomGroup.add(floor);
 
-            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w * 3, l * 3), ceilingMat);
-            ceiling.rotation.x = Math.PI / 2;
-            ceiling.position.y = h;
-            roomGroup.add(ceiling);
-
-            // Outer walls
-            const outerWallMat = wallMat.clone();
-            const makeOuterWall = (width, height, x, z, rotY) => {
-                const wall = new THREE.Mesh(new THREE.PlaneGeometry(width, height), outerWallMat);
-                wall.position.set(x, h/2, z);
-                wall.rotation.y = rotY;
-                wall.receiveShadow = true;
-                wall.castShadow = true;
-                roomGroup.add(wall);
-                return wall;
-            };
-
-            makeOuterWall(w * 3, h, 0, -l * 1.5, 0);
-            makeOuterWall(w * 3, h, 0, l * 1.5, Math.PI);
-            makeOuterWall(l * 3, h, -w * 1.5, 0, Math.PI / 2);
-            makeOuterWall(l * 3, h, w * 1.5, 0, -Math.PI / 2);
+            // Walls (simple box for collision demo)
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x64748b });
+            const walls = [
+                { pos: [0, roomDimensions.h/2, -roomDimensions.l], size: [roomDimensions.w*2, roomDimensions.h, 0.2] },
+                { pos: [0, roomDimensions.h/2, roomDimensions.l], size: [roomDimensions.w*2, roomDimensions.h, 0.2] },
+                { pos: [-roomDimensions.w, roomDimensions.h/2, 0], size: [0.2, roomDimensions.h, roomDimensions.l*2] },
+                { pos: [roomDimensions.w, roomDimensions.h/2, 0], size: [0.2, roomDimensions.h, roomDimensions.l*2] }
+            ];
+            walls.forEach(w => {
+                const mesh = new THREE.Mesh(new THREE.BoxGeometry(...w.size), wallMat);
+                mesh.position.set(...w.pos);
+                mesh.castShadow = mesh.receiveShadow = true;
+                roomGroup.add(mesh);
+            });
 
             scene.add(roomGroup);
         }
 
-        function resetGeometry() {
-            boundaryNodes = [];
-            nodeVisuals.forEach(n => scene.remove(n));
-            nodeVisuals = [];
-            wallSegments.forEach(w => scene.remove(w));
-            wallSegments = [];
-            buildAdvancedRoom();
+        function spawnMario() {
+            mario = new THREE.Group();
+            
+            // Simple Mario placeholder (body + head + hat)
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.3), bodyMat);
+            body.position.y = 0.6;
+            body.castShadow = true;
+            mario.add(body);
+
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 32), headMat);
+            head.position.y = 1.1;
+            mario.add(head);
+
+            // Hat
+            const hatMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.15, 32), hatMat);
+            hat.rotation.x = Math.PI / 2;
+            hat.position.set(0, 1.35, 0);
+            mario.add(hat);
+
+            mario.position.set(0, 0.5, 0);
+            scene.add(mario);
         }
 
         async function startXR() {
             document.getElementById('xrButton').style.display = 'none';
             try {
-                const session = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local-floor'] });
+                const session = await navigator.xr.requestSession('immersive-ar', { 
+                    requiredFeatures: ['local-floor'] 
+                });
                 renderer.xr.setSession(session);
                 setupControllers();
                 animate();
-            } catch (err) {
-                console.error(err);
+            } catch (e) {
+                console.error(e);
+                alert("Failed to start XR: " + e.message);
             }
         }
 
         function setupControllers() {
-            controllerL = renderer.xr.getController(0); scene.add(controllerL);
-            controllerR = renderer.xr.getController(1); scene.add(controllerR);
+            controllerL = renderer.xr.getController(0);
+            controllerR = renderer.xr.getController(1);
+            scene.add(controllerL);
+            scene.add(controllerR);
 
-            flashlight = new THREE.SpotLight(0xfff4c8, 0, 45, Math.PI / 3.2, 0.75, 2);
-            flashlight.castShadow = true;
-            flashlight.shadow.mapSize.set(1024, 1024);
-            controllerR.add(flashlight);
+            // Visual rays
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-5)]);
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x22ff88 });
+            controllerL.add(new THREE.Line(lineGeo, lineMat));
+            controllerR.add(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffaa22 })));
 
-            controllerR.addEventListener('squeezestart', () => {
-                isFlashlightOn = !isFlashlightOn;
-                flashlight.intensity = isFlashlightOn ? 5 : 0;
-            });
-
-            controllerL.addEventListener('selectstart', () => {
-                if (drawModeActive) handleDrawModeCast();
-            });
+            // Input listeners
+            controllerR.addEventListener('selectstart', () => { isJumping = true; });
+            controllerL.addEventListener('selectstart', () => { /* punch animation */ });
         }
 
-        function handleDrawModeCast() {
-            const pos = new THREE.Vector3();
-            controllerL.matrixWorld.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
-            const dir = new THREE.Vector3(0, -0.6, -0.8).applyQuaternion(controllerL.quaternion).normalize();
+        function getControllerInput() {
+            if (!controllerL || !controllerL.gamepad) return { move: new THREE.Vector2(0,0), turn: 0 };
 
-            const raycaster = new THREE.Raycaster(pos, dir);
-            const intersects = raycaster.intersectObjects(roomGroup.children, true);
-            
-            if (intersects.length > 0) {
-                const pt = intersects[0].point;
-                boundaryNodes.push(pt.clone());
+            const gpL = controllerL.gamepad;
+            const gpR = controllerR ? controllerR.gamepad : null;
 
-                const marker = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), new THREE.MeshBasicMaterial({color: 0xfbbf24}));
-                marker.position.copy(pt);
-                scene.add(marker);
-                nodeVisuals.push(marker);
+            return {
+                move: new THREE.Vector2(gpL.axes[2] || 0, gpL.axes[3] || 0), // left stick
+                turn: gpR ? gpR.axes[2] || 0 : 0, // right stick X
+                jump: controllerR && controllerR.gamepad ? controllerR.gamepad.buttons[0].pressed : false,
+                action: controllerL && controllerL.gamepad ? controllerL.gamepad.buttons[0].pressed : false,
+                grip: controllerL && controllerL.gamepad ? controllerL.gamepad.buttons[1].pressed : false
+            };
+        }
 
-                if (boundaryNodes.length >= 2) {
-                    const p1 = boundaryNodes[boundaryNodes.length - 2];
-                    const p2 = boundaryNodes[boundaryNodes.length - 1];
-                    createWallSegment(p1, p2);
-                }
+        function updateMarioPhysics(dt) {
+            const input = getControllerInput();
+            const speed = input.grip ? 8 : 5; // run/walk
+
+            // Forward movement relative to camera
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            forward.y = 0;
+            forward.normalize();
+
+            const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0));
+
+            moveDir.set(0,0,0);
+            moveDir.addScaledVector(forward, -input.move.y * speed);
+            moveDir.addScaledVector(right, input.move.x * speed);
+
+            marioVelocity.x = moveDir.x;
+            marioVelocity.z = moveDir.z;
+
+            // Simple jump
+            if (input.jump && !isJumping) {
+                marioVelocity.y = 6;
+                isJumping = true;
             }
-        }
 
-        function createWallSegment(p1, p2) {
-            const dist = p1.distanceTo(p2);
-            const height = roomDimensions.h;
+            // Gravity
+            marioVelocity.y -= 20 * dt;
 
-            const wallGeo = new THREE.PlaneGeometry(dist, height);
-            const wallMat = new THREE.MeshStandardMaterial({ 
-                map: wallTexture,
-                normalMap: noiseNormalMap,
-                normalScale: new THREE.Vector2(2.2, 2.2),
-                roughness: 0.9,
-                side: THREE.DoubleSide,
-                transparent: false
-            });
+            // Apply velocity
+            mario.position.x += marioVelocity.x * dt;
+            mario.position.z += marioVelocity.z * dt;
+            mario.position.y += marioVelocity.y * dt;
 
-            const wallMesh = new THREE.Mesh(wallGeo, wallMat);
-            const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-            
-            wallMesh.position.set(midpoint.x, height / 2, midpoint.z);
-            wallMesh.lookAt(p2.x, height / 2, p2.z);
-            wallMesh.rotateY(Math.PI / 2);
+            // Ground collision
+            if (mario.position.y <= 0.5) {
+                mario.position.y = 0.5;
+                marioVelocity.y = 0;
+                isJumping = false;
+            }
 
-            wallMesh.castShadow = true;
-            wallMesh.receiveShadow = true;
+            // Simple turning
+            if (Math.abs(input.turn) > 0.1) {
+                mario.rotation.y -= input.turn * 2 * dt;
+            }
 
-            roomGroup.add(wallMesh);
-            wallSegments.push(wallMesh);
+            // Basic animation (bob + lean)
+            const bob = Math.sin(clock.getElapsedTime() * 10) * 0.02 * marioVelocity.length();
+            mario.children[0].position.y = 0.6 + bob; // body bob
         }
 
         function animate() {
             renderer.setAnimationLoop(() => {
-                const time = clock.getElapsedTime();
+                const dt = Math.min(clock.getDelta(), 0.1);
+                updateMarioPhysics(dt);
 
-                // Flickering
-                scene.children.forEach(child => {
-                    if (child.isPointLight && child.userData?.baseIntensity) {
-                        child.intensity = child.userData.baseIntensity + Math.sin(time * 15 + child.userData.offset) * 0.4;
-                    }
-                });
-
-                if (wallTexture) wallTexture.offset.y = time * 0.06 % 1;
+                // Camera follows Mario (third person style)
+                const idealOffset = new THREE.Vector3(0, 3, 5).applyQuaternion(mario.quaternion);
+                camera.position.lerp(mario.position.clone().add(idealOffset), 0.1);
+                camera.lookAt(mario.position.clone().add(new THREE.Vector3(0, 1.2, 0)));
 
                 renderer.render(scene, camera);
             });
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
     </script>
 </body>
