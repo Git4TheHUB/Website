@@ -3,27 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>WebXR Verity MR - Advanced Interaction</title>
+    <title>WebXR Verity Mixed Reality</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
         #overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; display: flex; flex-direction: column;
-            justify-content: flex-end; align-items: center; padding-bottom: 50px; z-index: 10;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; /* Let touches pass through to WebXR */
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding-bottom: 40px;
+            z-index: 10;
         }
-        #ui-panel {
-            background: rgba(15, 15, 15, 0.85); padding: 20px; border-radius: 14px;
-            border: 2px solid #3a3a3a; text-align: center; pointer-events: auto; display: none;
+        #trigger-btn {
+            pointer-events: auto; /* Make button clickable */
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            background-color: #4CAF50;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            display: none; /* Hidden until AR starts */
+            transition: background-color 0.2s ease;
         }
-        .btn {
-            padding: 12px 24px; font-size: 16px; font-weight: bold; color: white;
-            background-color: #222; border: 2px solid #555; border-radius: 6px;
-            cursor: pointer; text-transform: uppercase; margin: 5px; transition: all 0.3s;
+        #trigger-btn:disabled {
+            background-color: #666;
+            cursor: default;
         }
-        .btn:active { background-color: #444; border-color: #fff; }
-        #true-form-btn { border-color: #8b0000; }
-        #true-form-btn:active { background-color: #8b0000; }
-        p { color: #aaa; margin: 8px 0 0 0; font-size: 12px; letter-spacing: 1px; }
+        #status-label {
+            position: absolute;
+            top: 24px; left: 0; width: 100%;
+            text-align: center;
+            color: #9fffb0;
+            font-size: 14px;
+            letter-spacing: 1px;
+            text-shadow: 0 0 6px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 10;
+        }
     </style>
     <script type="importmap">
         {
@@ -35,310 +55,608 @@
     </script>
 </head>
 <body>
+    <div id="status-label"></div>
     <div id="overlay">
-        <div id="ui-panel">
-            <button id="trigger-btn" class="btn">Awaken Box</button>
-            <button id="true-form-btn" class="btn" style="display:none;">True Form</button>
-            <p>Pinch / bring hand close to grab Verity.</p>
-        </div>
+        <button id="trigger-btn">Trigger Verity Intro</button>
     </div>
 
     <script type="module">
         import * as THREE from 'three';
         import { ARButton } from 'three/addons/webxr/ARButton.js';
         import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-        // --- GITHUB ASSET LINKS ---
-        // Replace these placeholders with your raw GitHub .gltf or .glb file links
-        const BALL_MODEL_URL = 'https://raw.githubusercontent.com/Git4TheHUB/Website/refs/heads/main/A.gltf'; 
-        const TRUE_FORM_URL = 'https://raw.githubusercontent.com/Git4TheHUB/Website/refs/heads/main/B.gltf'; 
+        // ---------------------------------------------------------------
+        // Globals
+        // ---------------------------------------------------------------
+        let camera, scene, renderer, clock;
+        let hand1, hand2;
+        let boxGroup, boxLid, veritySphere, veritySpotlight, entityLight;
+        let shadowCatcher;
+        let introState = 'idle'; // idle -> materializing -> rattling -> opening -> emerging -> hovering -> grabbed -> dropped
+        let stateTime = 0;
+        let spawnAnchor = new THREE.Vector3();
 
-        let camera, scene, renderer;
-        let instancedMesh, dummy;
-        let boxGroup, boxLidPivot, activeEntityContainer;
-        let ballModel, trueFormModel;
-        
-        let introPlaying = false;
-        let isTrueForm = false;
-        let grabbedHand = null; // Tracks which hand currently holds the entity
+        // Grab interaction state
+        let grabbingHand = null;      // 'left' | 'right' | null
+        let grabOffset = new THREE.Vector3();
+        let lastPinchPos = new THREE.Vector3();
+        let velocitySamples = [];     // for toss physics on release
+        let sphereVelocity = new THREE.Vector3();
+        const PINCH_ENGAGE_DIST = 0.028;   // meters between thumb & index tip to count as a pinch
+        const PINCH_RELEASE_DIST = 0.045;  // hysteresis so grabs don't flicker
+        const GRAB_RADIUS = 0.16;          // how close the pinch point must be to Verity to grab it
+        const SPHERE_RADIUS = 0.15;
 
-        const handJointsData = { hand1: {}, hand2: {} };
-        const VOXEL_SIZE = 0.15;
-        const MAX_VOXELS = 10000;
+        const statusLabel = document.getElementById('status-label');
+        const roomMeshes = new Map();
 
         init();
         animate();
 
+        // ---------------------------------------------------------------
+        // Setup
+        // ---------------------------------------------------------------
         function init() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+            clock = new THREE.Clock();
 
-            const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
-            dirLight.position.set(2, 6, 4);
-            scene.add(dirLight);
-            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            // --- Lighting: layered for a more realistic / game-like look ---
+            const hemi = new THREE.HemisphereLight(0xdfe9ff, 0x1a140f, 0.9);
+            hemi.position.set(0.5, 1, 0.25);
+            scene.add(hemi);
 
+            const sun = new THREE.DirectionalLight(0xfff2e0, 1.6);
+            sun.position.set(1.5, 3, 1.2);
+            sun.castShadow = true;
+            sun.shadow.mapSize.set(2048, 2048);
+            sun.shadow.camera.near = 0.1;
+            sun.shadow.camera.far = 8;
+            sun.shadow.camera.left = -2;
+            sun.shadow.camera.right = 2;
+            sun.shadow.camera.top = 2;
+            sun.shadow.camera.bottom = -2;
+            sun.shadow.bias = -0.0015;
+            sun.shadow.radius = 3; // soft shadow edge
+            scene.add(sun);
+            scene.add(sun.target);
+
+            // Flickery point light that lives on Verity for a horror-game glow
+            entityLight = new THREE.PointLight(0x39ff6a, 0, 1.2, 2);
+            entityLight.castShadow = false; // keep cheap; sun already casts the main shadow
+            scene.add(entityLight);
+
+            // --- Renderer ---
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.1;
             document.body.appendChild(renderer.domElement);
 
-            document.body.appendChild(ARButton.createButton(renderer, {
-                requiredFeatures: ['local-floor'],
-                optionalFeatures: ['mesh-detection', 'hand-tracking', 'dom-overlay'],
+            const arButton = ARButton.createButton(renderer, {
+                requiredFeatures: ['local-floor', 'hand-tracking', 'dom-overlay'],
+                optionalFeatures: ['mesh-detection'],
                 domOverlay: { root: document.getElementById('overlay') }
-            }));
+            });
+            document.body.appendChild(arButton);
 
             renderer.xr.addEventListener('sessionstart', () => {
-                document.getElementById('ui-panel').style.display = 'block';
+                document.getElementById('trigger-btn').style.display = 'block';
+            });
+            renderer.xr.addEventListener('sessionend', () => {
+                document.getElementById('trigger-btn').style.display = 'none';
+                resetIntro();
             });
 
-            setupHands();
-            setupEnvironmentVoxels();
-            buildDetailedBox();
-            setupEntityContainer();
-            loadAssets();
+            // --- Hands ---
+            const handModelFactory = new XRHandModelFactory();
 
-            document.getElementById('trigger-btn').addEventListener('click', startIntroSequence);
-            document.getElementById('true-form-btn').addEventListener('click', toggleTrueForm);
+            hand1 = renderer.xr.getHand(0);
+            hand1.add(handModelFactory.createHandModel(hand1, 'mesh'));
+            hand1.userData.label = 'left';
+            scene.add(hand1);
+
+            hand2 = renderer.xr.getHand(1);
+            hand2.add(handModelFactory.createHandModel(hand2, 'mesh'));
+            hand2.userData.label = 'right';
+            scene.add(hand2);
+
+            // --- Scene content ---
+            setupShadowCatcher();
+            setupVerityIntro();
+
+            document.getElementById('trigger-btn').addEventListener('click', startIntro);
             window.addEventListener('resize', onWindowResize);
         }
 
-        function setupHands() {
-            const handModelFactory = new XRHandModelFactory();
-
-            // Right Hand / Controller 1
-            const hand1 = renderer.xr.getHand(0);
-            hand1.add(handModelFactory.createHandModel(hand1, "mesh"));
-            scene.add(hand1);
-            trackHandJoints(hand1, 'hand1');
-
-            // Left Hand / Controller 2
-            const hand2 = renderer.xr.getHand(1);
-            hand2.add(handModelFactory.createHandModel(hand2, "mesh"));
-            scene.add(hand2);
-            trackHandJoints(hand2, 'hand2');
+        // A transparent plane that only shows shadows, so Verity's shadow
+        // falls convincingly onto the real-world floor seen through passthrough.
+        function setupShadowCatcher() {
+            const geo = new THREE.PlaneGeometry(6, 6);
+            const mat = new THREE.ShadowMaterial({ opacity: 0.35 });
+            shadowCatcher = new THREE.Mesh(geo, mat);
+            shadowCatcher.rotation.x = -Math.PI / 2;
+            shadowCatcher.receiveShadow = true;
+            shadowCatcher.visible = false; // enabled once we know the floor height
+            scene.add(shadowCatcher);
         }
 
-        function trackHandJoints(hand, handKey) {
-            // Hook into the frame updates to catch specific joint spaces
-            hand.addEventListener('connected', (event) => {
-                const xrInputSource = event.data;
-                if (xrInputSource.hand) {
-                    handJointsData[handKey].source = xrInputSource.hand;
-                }
-            });
+        // ---------------------------------------------------------------
+        // Procedural texture helpers (kept in-canvas so nothing external
+        // is required for the crate — only Verity uses the remote texture)
+        // ---------------------------------------------------------------
+        function makeCrateTexture() {
+            const size = 512;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Base wood/metal-crate color
+            ctx.fillStyle = '#5b3a20';
+            ctx.fillRect(0, 0, size, size);
+
+            // Plank lines
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.lineWidth = 4;
+            for (let i = 1; i < 4; i++) {
+                const x = (size / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, size);
+                ctx.stroke();
+            }
+
+            // Grain noise
+            for (let i = 0; i < 4000; i++) {
+                const x = Math.random() * size;
+                const y = Math.random() * size;
+                const shade = Math.random() * 40 - 20;
+                ctx.fillStyle = `rgba(${20 + shade},${12 + shade},${5 + shade},0.15)`;
+                ctx.fillRect(x, y, 2, 8);
+            }
+
+            // Reinforcing metal bands
+            ctx.fillStyle = '#2b2b2e';
+            ctx.fillRect(0, size * 0.12, size, size * 0.05);
+            ctx.fillRect(0, size * 0.83, size, size * 0.05);
+
+            // Warning stripe
+            ctx.save();
+            ctx.translate(size / 2, size / 2);
+            ctx.rotate(-Math.PI / 12);
+            ctx.fillStyle = '#e6c229';
+            ctx.fillRect(-size, -14, size * 2, 28);
+            ctx.fillStyle = '#1a1a1a';
+            for (let x = -size; x < size; x += 40) {
+                ctx.fillRect(x, -14, 20, 28);
+            }
+            ctx.restore();
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            return tex;
         }
 
-        function buildDetailedBox() {
+        function makeCrateRoughnessTexture() {
+            const size = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#777777';
+            ctx.fillRect(0, 0, size, size);
+            for (let i = 0; i < 3000; i++) {
+                const x = Math.random() * size;
+                const y = Math.random() * size;
+                const v = Math.floor(Math.random() * 120) + 60;
+                ctx.fillStyle = `rgb(${v},${v},${v})`;
+                ctx.fillRect(x, y, 1.5, 1.5);
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // ---------------------------------------------------------------
+        // Build the crate + Verity entity
+        // ---------------------------------------------------------------
+        function setupVerityIntro() {
+            const crateMap = makeCrateTexture();
+            const crateRough = makeCrateRoughnessTexture();
+
             boxGroup = new THREE.Group();
             boxGroup.visible = false;
+            boxGroup.scale.setScalar(0.001); // starts "materializing" from nothing
 
-            const wallMat = new THREE.MeshStandardMaterial({ color: 0x2c251e, roughness: 0.9, metalness: 0.2 });
-            const trimMat = new THREE.MeshStandardMaterial({ color: 0x0f0f0f, roughness: 0.5 });
-
-            // Base hollow structure
-            const baseMesh = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.4), wallMat);
-            baseMesh.position.y = 0.15;
-            boxGroup.add(baseMesh);
-
-            // Detailed Corner Pillars
-            const pillarGeo = new THREE.BoxGeometry(0.04, 0.32, 0.04);
-            const positions = [[0.2,0.2], [0.2,-0.2], [-0.2,0.2], [-0.2,-0.2]];
-            positions.forEach(pos => {
-                const pillar = new THREE.Mesh(pillarGeo, trimMat);
-                pillar.position.set(pos[0], 0.16, pos[1]);
-                boxGroup.add(pillar);
+            // --- Main crate body (open-topped, since the lid is separate) ---
+            const bodyMat = new THREE.MeshStandardMaterial({
+                map: crateMap,
+                roughnessMap: crateRough,
+                roughness: 1,
+                metalness: 0.15,
+                envMapIntensity: 0.6
             });
 
-            // Lid Hinge & Pivot point setup
-            boxLidPivot = new THREE.Group();
-            boxLidPivot.position.set(0, 0.3, -0.2); // Rear edge hinge placement
-            
-            const lidMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.42), wallMat);
-            lidMesh.position.set(0, 0.03, 0.2); // Offset back to cover the top
-            boxLidPivot.add(lidMesh);
-            
-            boxGroup.add(boxLidPivot);
+            const wallThickness = 0.02;
+            const size = 0.4;
+            const bodyGroup = new THREE.Group();
+
+            // 4 walls + floor, built from individually UV'd boxes for a crisp crate look
+            const wallGeoSide = new THREE.BoxGeometry(size, size * 0.9, wallThickness, 2, 2, 1);
+            const wallGeoFrontBack = new THREE.BoxGeometry(wallThickness, size * 0.9, size, 2, 2, 1);
+            const floorGeo = new THREE.BoxGeometry(size, wallThickness, size, 2, 1, 2);
+
+            const front = new THREE.Mesh(wallGeoSide, bodyMat);
+            front.position.set(0, 0, size / 2);
+            const back = new THREE.Mesh(wallGeoSide, bodyMat);
+            back.position.set(0, 0, -size / 2);
+            const left = new THREE.Mesh(wallGeoFrontBack, bodyMat);
+            left.position.set(-size / 2, 0, 0);
+            const right = new THREE.Mesh(wallGeoFrontBack, bodyMat);
+            right.position.set(size / 2, 0, 0);
+            const floor = new THREE.Mesh(floorGeo, bodyMat);
+            floor.position.set(0, -size * 0.45, 0);
+
+            [front, back, left, right, floor].forEach(m => {
+                m.castShadow = true;
+                m.receiveShadow = true;
+                bodyGroup.add(m);
+            });
+
+            // Corner rivets for extra detail
+            const rivetGeo = new THREE.CylinderGeometry(0.012, 0.012, size * 0.92, 8);
+            const rivetMat = new THREE.MeshStandardMaterial({ color: 0x1c1c1e, metalness: 0.9, roughness: 0.35 });
+            const corners = [
+                [-size / 2, -size / 2], [size / 2, -size / 2],
+                [-size / 2, size / 2], [size / 2, size / 2]
+            ];
+            corners.forEach(([x, z]) => {
+                const rivet = new THREE.Mesh(rivetGeo, rivetMat);
+                rivet.position.set(x, 0, z);
+                rivet.castShadow = true;
+                bodyGroup.add(rivet);
+            });
+
+            // Emissive edge highlight so it reads well even in a dim room
+            const edgeGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(size, size * 0.9, size));
+            const edgeMat = new THREE.LineBasicMaterial({ color: 0x39ff6a, transparent: true, opacity: 0.0 });
+            const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
+            edgeLines.name = 'crateEdgeGlow';
+            bodyGroup.add(edgeLines);
+
+            boxGroup.add(bodyGroup);
+
+            // --- Lid (detaches during the "opening" phase) ---
+            const lidGeo = new THREE.BoxGeometry(size * 1.02, wallThickness * 1.4, size * 1.02);
+            boxLid = new THREE.Mesh(lidGeo, bodyMat);
+            boxLid.position.set(0, size * 0.47, 0);
+            boxLid.castShadow = true;
+            boxLid.receiveShadow = true;
+            boxGroup.add(boxLid);
+
+            // Inner glow that becomes visible once the lid pops
+            const glowGeo = new THREE.PlaneGeometry(size * 0.85, size * 0.85);
+            const glowMat = new THREE.MeshBasicMaterial({ color: 0x39ff6a, transparent: true, opacity: 0.0, side: THREE.DoubleSide });
+            const innerGlow = new THREE.Mesh(glowGeo, glowMat);
+            innerGlow.rotation.x = -Math.PI / 2;
+            innerGlow.position.set(0, -size * 0.35, 0);
+            innerGlow.name = 'innerGlow';
+            boxGroup.add(innerGlow);
+
             scene.add(boxGroup);
+
+            // --- Verity (the sphere entity) ---
+            const sphereGeo = new THREE.SphereGeometry(SPHERE_RADIUS, 64, 64);
+            const sphereMat = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                emissive: 0x0b3d1c,
+                emissiveIntensity: 0.4,
+                roughness: 0.35,
+                metalness: 0.1,
+                clearcoat: 0.5,
+                clearcoatRoughness: 0.25
+            });
+            veritySphere = new THREE.Mesh(sphereGeo, sphereMat);
+            veritySphere.visible = false;
+            veritySphere.castShadow = true;
+            veritySphere.receiveShadow = true;
+            veritySphere.userData.grabbable = true;
+            scene.add(veritySphere);
+
+            // Load the real texture asynchronously; falls back to the plain
+            // material above if the fetch fails so the demo never breaks.
+            const loader = new THREE.TextureLoader();
+            loader.setCrossOrigin('anonymous');
+            loader.load(
+                'https://raw.githubusercontent.com/Git4TheHUB/Website/main/Material.001_baseColor.png',
+                (tex) => {
+                    tex.colorSpace = THREE.SRGBColorSpace;
+                    sphereMat.map = tex;
+                    sphereMat.needsUpdate = true;
+                },
+                undefined,
+                (err) => console.warn('Verity texture failed to load, using fallback material.', err)
+            );
+
+            // A tight little spotlight riding with Verity to sell the "entity" glow
+            veritySpotlight = new THREE.SpotLight(0x39ff6a, 0, 1.0, Math.PI / 4, 0.6, 1.5);
+            veritySpotlight.castShadow = false;
+            scene.add(veritySpotlight);
+            scene.add(veritySpotlight.target);
         }
 
-        function setupEntityContainer() {
-            // Container that holds either the ball or true form model
-            activeEntityContainer = new THREE.Group();
-            activeEntityContainer.visible = false;
-            scene.add(activeEntityContainer);
+        // ---------------------------------------------------------------
+        // Intro sequence (state machine driven from the render loop)
+        // ---------------------------------------------------------------
+        function startIntro() {
+            if (introState !== 'idle') return;
 
-            // Standard fallback geometry until models download/load
-            const fallbackGeo = new THREE.SphereGeometry(0.08, 16, 16);
-            const fallbackMat = new THREE.MeshStandardMaterial({ color: 0x990000, emissive: 0x330000 });
-            ballModel = new THREE.Mesh(fallbackGeo, fallbackMat);
-            activeEntityContainer.add(ballModel);
-        }
+            const userPosition = new THREE.Vector3();
+            camera.getWorldPosition(userPosition);
+            const userDirection = new THREE.Vector3();
+            camera.getWorldDirection(userDirection);
+            userDirection.y = 0;
+            userDirection.normalize();
 
-        function loadAssets() {
-            const loader = new GLTFLoader();
+            spawnAnchor.copy(userPosition).add(userDirection.multiplyScalar(1.3));
+            spawnAnchor.y = Math.max(userPosition.y - 1.0, 0); // approx floor height
 
-            if (BALL_MODEL_URL) {
-                loader.load(BALL_MODEL_URL, (gltf) => {
-                    activeEntityContainer.remove(ballModel);
-                    ballModel = gltf.scene;
-                    ballModel.scale.setScalar(0.1); // Adjust base scale depending on asset size
-                    activeEntityContainer.add(ballModel);
-                });
-            }
-
-            if (TRUE_FORM_URL) {
-                loader.load(TRUE_FORM_URL, (gltf) => {
-                    trueFormModel = gltf.scene;
-                    trueFormModel.scale.setScalar(0.2);
-                    trueFormModel.visible = false;
-                    activeEntityContainer.add(trueFormModel);
-                    document.getElementById('true-form-btn').style.display = 'inline-block';
-                });
-            } else {
-                // Procedural fallback True Form asset if link is blank
-                const geom = new THREE.IcosahedronGeometry(0.12, 1);
-                const mat = new THREE.MeshStandardMaterial({ color: 0xff0000, wireframe: true });
-                trueFormModel = new THREE.Mesh(geom, mat);
-                trueFormModel.visible = false;
-                activeEntityContainer.add(trueFormModel);
-                document.getElementById('true-form-btn').style.display = 'inline-block';
-            }
-        }
-
-        function startIntroSequence() {
-            if (introPlaying) return;
-            introPlaying = true;
-            document.getElementById('trigger-btn').style.display = 'none';
-
-            const userPos = new THREE.Vector3(), userDir = new THREE.Vector3();
-            camera.getWorldPosition(userPos);
-            camera.getWorldDirection(userDir);
-
-            // Lock box spawn 1.2m ahead of headset
-            boxGroup.position.copy(userPos).add(userDir.multiplyScalar(1.2));
-            boxGroup.position.y = Math.max(userPos.y - 0.4, 0.2); 
-            boxGroup.lookAt(userPos.x, boxGroup.position.y, userPos.z);
+            boxGroup.position.copy(spawnAnchor);
+            boxGroup.position.y += 0.24; // half box height so it sits on the floor
             boxGroup.visible = true;
+            boxGroup.scale.setScalar(0.001);
 
-            activeEntityContainer.position.copy(boxGroup.position).add(new THREE.Vector3(0, 0.15, 0));
+            shadowCatcher.position.set(spawnAnchor.x, spawnAnchor.y + 0.001, spawnAnchor.z);
+            shadowCatcher.visible = true;
 
-            let progress = 0;
-            const seqInterval = setInterval(() => {
-                progress += 0.016;
-
-                if (progress < 1.5) {
-                    // Stage 1: Box shakes slightly
-                    boxGroup.position.x += Math.sin(progress * 80) * 0.003;
-                } else if (progress >= 1.5 && progress < 3.0) {
-                    // Stage 2: Lid opens smoothly via pivot point
-                    if (boxLidPivot.rotation.x > -Math.PI * 0.65) {
-                        boxLidPivot.rotation.x -= 0.03;
-                    }
-                    // Entity slowly levitates out
-                    activeEntityContainer.visible = true;
-                    activeEntityContainer.position.y += 0.004;
-                } else {
-                    // Stage 3: Stabilization, activation complete
-                    clearInterval(seqInterval);
-                    introPlaying = false;
-                }
-            }, 16);
+            veritySphere.visible = false;
+            introState = 'materializing';
+            stateTime = 0;
+            document.getElementById('trigger-btn').disabled = true;
         }
 
-        function toggleTrueForm() {
-            isTrueForm = !isTrueForm;
-            if (isTrueForm) {
-                ballModel.visible = false;
-                trueFormModel.visible = true;
-            } else {
-                ballModel.visible = true;
-                trueFormModel.visible = false;
+        function resetIntro() {
+            introState = 'idle';
+            stateTime = 0;
+            grabbingHand = null;
+            if (boxGroup) boxGroup.visible = false;
+            if (veritySphere) veritySphere.visible = false;
+            if (shadowCatcher) shadowCatcher.visible = false;
+            const btn = document.getElementById('trigger-btn');
+            if (btn) btn.disabled = false;
+        }
+
+        function updateIntro(dt) {
+            if (introState === 'idle') return;
+            stateTime += dt;
+
+            const edgeGlow = boxGroup.getObjectByName('crateEdgeGlow');
+            const innerGlow = boxGroup.getObjectByName('innerGlow');
+
+            switch (introState) {
+                case 'materializing': {
+                    const t = Math.min(stateTime / 0.8, 1);
+                    const eased = easeOutBack(t);
+                    boxGroup.scale.setScalar(Math.max(eased, 0.001));
+                    if (edgeGlow) edgeGlow.material.opacity = t * 0.9;
+                    if (t >= 1) {
+                        introState = 'rattling';
+                        stateTime = 0;
+                    }
+                    break;
+                }
+                case 'rattling': {
+                    const shake = Math.min(stateTime / 1.2, 1);
+                    const intensity = 0.05 * (1 - Math.abs(shake - 0.5) * 0.6);
+                    boxGroup.rotation.z = Math.sin(stateTime * 40) * intensity;
+                    boxGroup.rotation.x = Math.cos(stateTime * 33) * intensity * 0.6;
+                    boxGroup.position.y = spawnAnchor.y + 0.24 + Math.abs(Math.sin(stateTime * 50)) * 0.01;
+                    if (edgeGlow) edgeGlow.material.opacity = 0.9 + Math.sin(stateTime * 60) * 0.1;
+                    if (stateTime > 1.2) {
+                        introState = 'opening';
+                        stateTime = 0;
+                        boxGroup.rotation.set(0, boxGroup.rotation.y, 0);
+                    }
+                    break;
+                }
+                case 'opening': {
+                    const t = Math.min(stateTime / 0.6, 1);
+                    // Lid pops up and flies off
+                    boxLid.position.y = 0.235 + t * t * 0.9;
+                    boxLid.rotation.x = t * 1.6;
+                    boxLid.rotation.z = t * 0.8;
+                    if (innerGlow) innerGlow.material.opacity = t * 0.8;
+                    entityLight.intensity = t * 1.5;
+                    if (t >= 1) {
+                        introState = 'emerging';
+                        stateTime = 0;
+                        veritySphere.visible = true;
+                        veritySphere.position.copy(boxGroup.position);
+                        veritySphere.position.y = boxGroup.position.y - 0.15;
+                    }
+                    break;
+                }
+                case 'emerging': {
+                    const t = Math.min(stateTime / 1.4, 1);
+                    const eased = easeOutCubic(t);
+                    veritySphere.position.y = (boxGroup.position.y - 0.15) + eased * 0.75;
+                    veritySphere.scale.setScalar(0.4 + eased * 0.6);
+                    veritySphere.material.emissiveIntensity = 0.4 + eased * 0.6;
+                    entityLight.position.copy(veritySphere.position);
+                    entityLight.intensity = 1.0 + eased * 1.2;
+                    positionSpotOnSphere();
+                    if (t >= 1) {
+                        introState = 'hovering';
+                        stateTime = 0;
+                        document.getElementById('trigger-btn').disabled = false;
+                        document.getElementById('trigger-btn').textContent = 'Reset Verity';
+                    }
+                    break;
+                }
+                case 'hovering': {
+                    if (grabbingHand) break; // handled by grab logic instead
+                    const bob = Math.sin(stateTime * 1.6) * 0.03;
+                    const targetY = (boxGroup.position.y - 0.15) + 0.75 + bob;
+                    veritySphere.position.y += (targetY - veritySphere.position.y) * 0.06;
+                    // slow idle spin + gentle "look toward player" turn
+                    veritySphere.rotation.y += dt * 0.3;
+                    // flicker the entity light like an unsettled presence
+                    entityLight.intensity = 1.8 + Math.sin(stateTime * 9.0) * 0.15 + (Math.random() - 0.5) * 0.05;
+                    entityLight.position.copy(veritySphere.position);
+                    positionSpotOnSphere();
+                    break;
+                }
             }
         }
 
-        function checkHandGrabbing(frame, referenceSpace) {
-            if (introPlaying || !activeEntityContainer.visible) return;
+        function positionSpotOnSphere() {
+            veritySpotlight.position.copy(veritySphere.position);
+            veritySpotlight.position.y += 0.6;
+            veritySpotlight.target.position.copy(veritySphere.position);
+            veritySpotlight.intensity = introState === 'hovering' || introState === 'grabbed' ? 1.4 : 0.6;
+        }
 
-            // If an object is already grabbed, track its placement to that specific hand
-            if (grabbedHand) {
-                const inputSource = renderer.xr.getController(grabbedHand === 'hand1' ? 0 : 1);
-                activeEntityContainer.position.copy(inputSource.position);
-                activeEntityContainer.rotation.copy(inputSource.rotation);
-                
-                // Release condition: simplified by tracking if hand tracking is active or via automated timer
+        function easeOutBack(t) {
+            const c1 = 1.70158, c3 = c1 + 1;
+            return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+        }
+        function easeOutCubic(t) {
+            return 1 - Math.pow(1 - t, 3);
+        }
+
+        // ---------------------------------------------------------------
+        // Grabbing Verity with a pinch gesture (thumb tip <-> index tip)
+        // ---------------------------------------------------------------
+        function getPinch(hand) {
+            if (!hand || !hand.joints) return null;
+            const thumb = hand.joints['thumb-tip'];
+            const index = hand.joints['index-finger-tip'];
+            if (!thumb || !index) return null;
+            const dist = thumb.position.distanceTo(index.position);
+            const mid = new THREE.Vector3().addVectors(thumb.position, index.position).multiplyScalar(0.5);
+            return { dist, mid };
+        }
+
+        function updateGrab(dt) {
+            if (introState !== 'hovering' && introState !== 'grabbed') return;
+
+            const leftPinch = getPinch(hand1.userData.label === 'left' ? hand1 : hand2);
+            const rightPinch = getPinch(hand1.userData.label === 'right' ? hand1 : hand2);
+
+            if (!grabbingHand) {
+                // Look for a fresh pinch close enough to Verity to start a grab
+                [{ label: 'left', p: leftPinch }, { label: 'right', p: rightPinch }].forEach(({ label, p }) => {
+                    if (grabbingHand || !p) return;
+                    if (p.dist < PINCH_ENGAGE_DIST && p.mid.distanceTo(veritySphere.position) < GRAB_RADIUS) {
+                        grabbingHand = label;
+                        grabOffset.copy(veritySphere.position).sub(p.mid);
+                        lastPinchPos.copy(p.mid);
+                        velocitySamples = [];
+                        introState = 'grabbed';
+                        statusLabel.textContent = 'Verity grabbed';
+                    }
+                });
                 return;
             }
 
-            // Proximity checking for pickup mechanics
-            ['hand1', 'hand2'].forEach((handKey, index) => {
-                const handHand = handJointsData[handKey].source;
-                if (!handHand) return;
-
-                // Index finger tip joint index is 8
-                const indexTipJoint = handHand.get('index-finger-tip');
-                if (!indexTipJoint) return;
-
-                const jointPose = frame.getJointPose(indexTipJoint, referenceSpace);
-                if (jointPose) {
-                    const jointPos = new THREE.Vector3(
-                        jointPose.transform.position.x,
-                        jointPose.transform.position.y,
-                        jointPose.transform.position.z
-                    );
-
-                    const dist = jointPos.distanceTo(activeEntityContainer.position);
-                    if (dist < 0.15) { // Grab range threshold 15cm
-                        grabbedHand = handKey;
-                    }
+            // Currently grabbing: track the pinch point that started the grab
+            const activePinch = grabbingHand === 'left' ? leftPinch : rightPinch;
+            if (!activePinch || activePinch.dist > PINCH_RELEASE_DIST) {
+                // Released: compute a toss velocity from recent motion
+                if (velocitySamples.length > 0) {
+                    const avg = velocitySamples.reduce((a, b) => a.add(b), new THREE.Vector3())
+                        .multiplyScalar(1 / velocitySamples.length);
+                    sphereVelocity.copy(avg);
+                } else {
+                    sphereVelocity.set(0, 0, 0);
                 }
-            });
+                grabbingHand = null;
+                introState = 'dropped';
+                stateTime = 0;
+                statusLabel.textContent = '';
+                return;
+            }
+
+            const targetPos = new THREE.Vector3().addVectors(activePinch.mid, grabOffset);
+            veritySphere.position.lerp(targetPos, Math.min(1, dt * 20));
+
+            const frameVel = new THREE.Vector3().subVectors(activePinch.mid, lastPinchPos).multiplyScalar(1 / Math.max(dt, 0.0001));
+            velocitySamples.push(frameVel);
+            if (velocitySamples.length > 6) velocitySamples.shift();
+            lastPinchPos.copy(activePinch.mid);
+
+            entityLight.position.copy(veritySphere.position);
+            entityLight.intensity = 2.0 + Math.sin(performance.now() * 0.02) * 0.2;
+            positionSpotOnSphere();
         }
 
-        function setupEnvironmentVoxels() {
-            const geometry = new THREE.BoxGeometry(VOXEL_SIZE, VOXEL_SIZE, VOXEL_SIZE);
-            const material = new THREE.MeshStandardMaterial({ color: 0x3b2f23, roughness: 0.9 });
-            instancedMesh = new THREE.InstancedMesh(geometry, material, MAX_VOXELS);
-            scene.add(instancedMesh);
-            dummy = new THREE.Object3D();
+        // Simple physics after Verity is thrown/released: gravity + floor bounce
+        function updateDropped(dt) {
+            if (introState !== 'dropped') return;
+
+            sphereVelocity.y -= 2.2 * dt; // gravity
+            veritySphere.position.addScaledVector(sphereVelocity, dt);
+
+            const floorY = (boxGroup.position.y - 0.15) + SPHERE_RADIUS;
+            if (veritySphere.position.y < floorY) {
+                veritySphere.position.y = floorY;
+                sphereVelocity.y *= -0.35; // bounce, losing energy
+                sphereVelocity.x *= 0.6;
+                sphereVelocity.z *= 0.6;
+                if (Math.abs(sphereVelocity.y) < 0.05) {
+                    sphereVelocity.set(0, 0, 0);
+                    introState = 'hovering';
+                    stateTime = 0;
+                }
+            }
+
+            entityLight.position.copy(veritySphere.position);
+            positionSpotOnSphere();
         }
 
-        function processMeshToVoxels(frame) {
+        // ---------------------------------------------------------------
+        // Real-world mesh reconstruction (unchanged in spirit, tidied up)
+        // ---------------------------------------------------------------
+        function processRealWorldMeshes(frame) {
             if (!frame.detectedMeshes) return;
-            const referenceSpace = renderer.xr.getReferenceSpace();
-            const voxelGrid = new Set();
-            let count = 0;
 
-            frame.detectedMeshes.forEach(mesh => {
-                const pose = frame.getPose(mesh.meshSpace, referenceSpace);
-                if (!pose) return;
+            frame.detectedMeshes.forEach(xrMesh => {
+                let threeMesh = roomMeshes.get(xrMesh);
 
-                const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
-                const vertices = mesh.vertices;
+                if (!threeMesh) {
+                    const geometry = new THREE.BufferGeometry();
+                    const material = new THREE.MeshBasicMaterial({
+                        color: 0x00aaff,
+                        wireframe: true,
+                        transparent: true,
+                        opacity: 0.3
+                    });
+                    threeMesh = new THREE.Mesh(geometry, material);
+                    scene.add(threeMesh);
+                    roomMeshes.set(xrMesh, threeMesh);
+                }
 
-                for (let i = 0; i < vertices.length; i += 18) { // Performance stride
-                    let v = new THREE.Vector3(vertices[i], vertices[i+1], vertices[i+2]).applyMatrix4(matrix);
-                    let gx = Math.round(v.x / VOXEL_SIZE) * VOXEL_SIZE;
-                    let gy = Math.round(v.y / VOXEL_SIZE) * VOXEL_SIZE;
-                    let gz = Math.round(v.z / VOXEL_SIZE) * VOXEL_SIZE;
-                    let hash = `${gx}_${gy}_${gz}`;
+                const vertices = xrMesh.vertices;
+                const indices = xrMesh.indices;
+                threeMesh.geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                if (indices) {
+                    threeMesh.geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+                }
 
-                    if (!voxelGrid.has(hash) && count < MAX_VOXELS) {
-                        voxelGrid.add(hash);
-                        dummy.position.set(gx, gy, gz);
-                        dummy.updateMatrix();
-                        instancedMesh.setMatrixAt(count, dummy.matrix);
-                        count++;
-                    }
+                const pose = frame.getPose(xrMesh.semanticSpace, renderer.xr.getReferenceSpace());
+                if (pose) {
+                    threeMesh.matrix.fromArray(pose.transform.matrix);
+                    threeMesh.matrixAutoUpdate = false;
                 }
             });
-            instancedMesh.count = count;
-            instancedMesh.instanceMatrix.needsUpdate = true;
         }
 
+        // ---------------------------------------------------------------
+        // Loop
+        // ---------------------------------------------------------------
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -347,16 +665,15 @@
 
         function animate() {
             renderer.setAnimationLoop((timestamp, frame) => {
+                const dt = Math.min(clock.getDelta(), 0.05);
+
                 if (frame) {
-                    const refSpace = renderer.xr.getReferenceSpace();
-                    processMeshToVoxels(frame);
-                    checkHandGrabbing(frame, refSpace);
+                    processRealWorldMeshes(frame);
                 }
 
-                // Ambient item idle rotation when not held
-                if (!grabbedHand && activeEntityContainer.visible) {
-                    activeEntityContainer.rotation.y += isTrueForm ? 0.06 : 0.01;
-                }
+                updateIntro(dt);
+                updateGrab(dt);
+                updateDropped(dt);
 
                 renderer.render(scene, camera);
             });
