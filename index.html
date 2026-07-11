@@ -2,180 +2,365 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Backrooms MR - Level 0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WebXR Verity MR - Advanced Interaction</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
-        #ui { 
-            position: absolute; top: 10px; left: 10px; z-index: 100; 
-            background: rgba(15, 15, 20, 0.9); color: #ddd; padding: 15px; 
-            border-radius: 8px; width: 340px; border: 1px solid rgba(255,255,255,0.1);
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+            justify-content: flex-end; align-items: center; padding-bottom: 50px; z-index: 10;
         }
-        button, input[type="range"] { margin: 8px 0; width: 100%; }
-        button { background: #ca8a04; color: white; border: none; padding: 12px; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        button:hover { background: #a16207; }
-        #xrButton {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            padding: 16px 32px; font-size: 17px; font-weight: bold; background: #ca8a04; color: white;
-            border: none; border-radius: 8px; cursor: pointer; z-index: 200;
+        #ui-panel {
+            background: rgba(15, 15, 15, 0.85); padding: 20px; border-radius: 14px;
+            border: 2px solid #3a3a3a; text-align: center; pointer-events: auto; display: none;
         }
+        .btn {
+            padding: 12px 24px; font-size: 16px; font-weight: bold; color: white;
+            background-color: #222; border: 2px solid #555; border-radius: 6px;
+            cursor: pointer; text-transform: uppercase; margin: 5px; transition: all 0.3s;
+        }
+        .btn:active { background-color: #444; border-color: #fff; }
+        #true-form-btn { border-color: #8b0000; }
+        #true-form-btn:active { background-color: #8b0000; }
+        p { color: #aaa; margin: 8px 0 0 0; font-size: 12px; letter-spacing: 1px; }
     </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 </head>
 <body>
-    <div id="ui">
-        <h2 style="color:#fbbf24; margin-top:0;">Backrooms Level 0</h2>
-        <button id="btnClear">Reset Scene</button>
-        <div style="font-size:12px; color:#aaa; margin-top:10px;">
-            R-Grip: Toggle Flashlight<br>
-            L-Trigger: Add Wall Nodes
+    <div id="overlay">
+        <div id="ui-panel">
+            <button id="trigger-btn" class="btn">Awaken Box</button>
+            <button id="true-form-btn" class="btn" style="display:none;">True Form</button>
+            <p>Pinch / bring hand close to grab Verity.</p>
         </div>
     </div>
 
-    <button id="xrButton">ENTER THE BACKROOMS</button>
+    <script type="module">
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.min.js"></script>
+        // --- GITHUB ASSET LINKS ---
+        // Replace these placeholders with your raw GitHub .gltf or .glb file links
+        const BALL_MODEL_URL = 'https://raw.githubusercontent.com/Git4TheHUB/Website/refs/heads/main/A.gltf'; 
+        const TRUE_FORM_URL = 'https://raw.githubusercontent.com/Git4TheHUB/Website/refs/heads/main/B.gltf'; 
 
-    <script>
-        let scene, camera, renderer, clock;
-        let modelGroup, flashlight;
-        let isFlashlightOn = true;
-        let controllerL, controllerR;
+        let camera, scene, renderer;
+        let instancedMesh, dummy;
+        let boxGroup, boxLidPivot, activeEntityContainer;
+        let ballModel, trueFormModel;
+        
+        let introPlaying = false;
+        let isTrueForm = false;
+        let grabbedHand = null; // Tracks which hand currently holds the entity
 
-        // Replace these URLs with your GitHub raw links
-        const MODEL_URL = 'https://raw.githubusercontent.com/Git4TheHUB/Website/refs/heads/main/scene.gltf';
-        const TEXTURE_BASE = 'https://raw.githubusercontent.com/Gut4TheHub/Website/refs/heads/main/Piece1_baseColor.png';
+        const handJointsData = { hand1: {}, hand2: {} };
+        const VOXEL_SIZE = 0.15;
+        const MAX_VOXELS = 10000;
 
         init();
+        animate();
 
         function init() {
-            clock = new THREE.Clock();
             scene = new THREE.Scene();
-            scene.fog = new THREE.Fog(0x554433, 10, 70);
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
-            camera.position.set(2, 1.6, 3); // Spawn position
+            const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+            dirLight.position.set(2, 6, 4);
+            scene.add(dirLight);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            // Lighting
-            scene.add(new THREE.AmbientLight(0xffeecc, 0.65));
-            const hemi = new THREE.HemisphereLight(0xffeecc, 0x332211, 0.4);
-            scene.add(hemi);
+            document.body.appendChild(ARButton.createButton(renderer, {
+                requiredFeatures: ['local-floor'],
+                optionalFeatures: ['mesh-detection', 'hand-tracking', 'dom-overlay'],
+                domOverlay: { root: document.getElementById('overlay') }
+            }));
 
-            loadModel();
-            setupUI();
-        }
-
-        function loadModel() {
-            const loader = new THREE.GLTFLoader();
-            loader.load(MODEL_URL, (gltf) => {
-                modelGroup = gltf.scene;
-                
-                // Apply your textures to the model
-                modelGroup.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-
-                        if (child.material) {
-                            // You can assign specific textures based on material name if needed
-                            if (child.material.name.toLowerCase().includes('floor') || child.material.name.toLowerCase().includes('carpet')) {
-                                child.material.map = new THREE.TextureLoader().load(TEXTURE_BASE + 'NewCarpet_baseColor.png');
-                            }
-                            if (child.material.name.toLowerCase().includes('ceiling')) {
-                                child.material.map = new THREE.TextureLoader().load(TEXTURE_BASE + 'CeilingTile_baseColor.png');
-                            }
-                            if (child.material.name.toLowerCase().includes('wall')) {
-                                child.material.map = new THREE.TextureLoader().load(TEXTURE_BASE + 'IMG_1598.jpg');
-                            }
-                            child.material.needsUpdate = true;
-                        }
-                    }
-                });
-
-                scene.add(modelGroup);
-                console.log("Backrooms model loaded successfully");
-            }, undefined, (err) => {
-                console.error("Model load error:", err);
-            });
-        }
-
-        function setupUI() {
-            document.getElementById('btnClear').addEventListener('click', () => {
-                if (modelGroup) modelGroup.position.set(0, 0, 0);
+            renderer.xr.addEventListener('sessionstart', () => {
+                document.getElementById('ui-panel').style.display = 'block';
             });
 
-            const xrBtn = document.getElementById('xrButton');
-            if (navigator.xr) {
-                navigator.xr.isSessionSupported('immersive-ar').then(supported => {
-                    if (supported) xrBtn.addEventListener('click', startXR);
-                });
-            }
+            setupHands();
+            setupEnvironmentVoxels();
+            buildDetailedBox();
+            setupEntityContainer();
+            loadAssets();
+
+            document.getElementById('trigger-btn').addEventListener('click', startIntroSequence);
+            document.getElementById('true-form-btn').addEventListener('click', toggleTrueForm);
+            window.addEventListener('resize', onWindowResize);
         }
 
-        async function startXR() {
-            document.getElementById('xrButton').style.display = 'none';
-            try {
-                const session = await navigator.xr.requestSession('immersive-ar', {
-                    requiredFeatures: ['local-floor']
-                });
-                renderer.xr.setSession(session);
-                setupControllers();
-                animate();
-            } catch (e) {
-                alert("Failed to start AR: " + e.message);
-            }
+        function setupHands() {
+            const handModelFactory = new XRHandModelFactory();
+
+            // Right Hand / Controller 1
+            const hand1 = renderer.xr.getHand(0);
+            hand1.add(handModelFactory.createHandModel(hand1, "mesh"));
+            scene.add(hand1);
+            trackHandJoints(hand1, 'hand1');
+
+            // Left Hand / Controller 2
+            const hand2 = renderer.xr.getHand(1);
+            hand2.add(handModelFactory.createHandModel(hand2, "mesh"));
+            scene.add(hand2);
+            trackHandJoints(hand2, 'hand2');
         }
 
-        function setupControllers() {
-            controllerL = renderer.xr.getController(0);
-            controllerR = renderer.xr.getController(1);
-            scene.add(controllerL, controllerR);
-
-            // Flashlight
-            flashlight = new THREE.SpotLight(0xffeebb, 6, 35, Math.PI / 3.5, 0.8, 2);
-            flashlight.castShadow = true;
-            flashlight.shadow.mapSize.set(1024, 1024);
-            controllerR.add(flashlight);
-
-            controllerR.addEventListener('squeezestart', () => {
-                isFlashlightOn = !isFlashlightOn;
-                flashlight.intensity = isFlashlightOn ? 6 : 0;
-            });
-        }
-
-        function animate() {
-            renderer.setAnimationLoop(() => {
-                const delta = clock.getDelta();
-                const time = clock.getElapsedTime();
-
-                // Subtle old film / VHS effect
-                if (modelGroup) {
-                    modelGroup.traverse(child => {
-                        if (child.material && child.material.map) {
-                            child.material.map.offset.y = (time * 0.04) % 1;
-                        }
-                    });
+        function trackHandJoints(hand, handKey) {
+            // Hook into the frame updates to catch specific joint spaces
+            hand.addEventListener('connected', (event) => {
+                const xrInputSource = event.data;
+                if (xrInputSource.hand) {
+                    handJointsData[handKey].source = xrInputSource.hand;
                 }
-
-                renderer.render(scene, camera);
             });
         }
 
-        function onResize() {
+        function buildDetailedBox() {
+            boxGroup = new THREE.Group();
+            boxGroup.visible = false;
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x2c251e, roughness: 0.9, metalness: 0.2 });
+            const trimMat = new THREE.MeshStandardMaterial({ color: 0x0f0f0f, roughness: 0.5 });
+
+            // Base hollow structure
+            const baseMesh = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.4), wallMat);
+            baseMesh.position.y = 0.15;
+            boxGroup.add(baseMesh);
+
+            // Detailed Corner Pillars
+            const pillarGeo = new THREE.BoxGeometry(0.04, 0.32, 0.04);
+            const positions = [[0.2,0.2], [0.2,-0.2], [-0.2,0.2], [-0.2,-0.2]];
+            positions.forEach(pos => {
+                const pillar = new THREE.Mesh(pillarGeo, trimMat);
+                pillar.position.set(pos[0], 0.16, pos[1]);
+                boxGroup.add(pillar);
+            });
+
+            // Lid Hinge & Pivot point setup
+            boxLidPivot = new THREE.Group();
+            boxLidPivot.position.set(0, 0.3, -0.2); // Rear edge hinge placement
+            
+            const lidMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.42), wallMat);
+            lidMesh.position.set(0, 0.03, 0.2); // Offset back to cover the top
+            boxLidPivot.add(lidMesh);
+            
+            boxGroup.add(boxLidPivot);
+            scene.add(boxGroup);
+        }
+
+        function setupEntityContainer() {
+            // Container that holds either the ball or true form model
+            activeEntityContainer = new THREE.Group();
+            activeEntityContainer.visible = false;
+            scene.add(activeEntityContainer);
+
+            // Standard fallback geometry until models download/load
+            const fallbackGeo = new THREE.SphereGeometry(0.08, 16, 16);
+            const fallbackMat = new THREE.MeshStandardMaterial({ color: 0x990000, emissive: 0x330000 });
+            ballModel = new THREE.Mesh(fallbackGeo, fallbackMat);
+            activeEntityContainer.add(ballModel);
+        }
+
+        function loadAssets() {
+            const loader = new GLTFLoader();
+
+            if (BALL_MODEL_URL) {
+                loader.load(BALL_MODEL_URL, (gltf) => {
+                    activeEntityContainer.remove(ballModel);
+                    ballModel = gltf.scene;
+                    ballModel.scale.setScalar(0.1); // Adjust base scale depending on asset size
+                    activeEntityContainer.add(ballModel);
+                });
+            }
+
+            if (TRUE_FORM_URL) {
+                loader.load(TRUE_FORM_URL, (gltf) => {
+                    trueFormModel = gltf.scene;
+                    trueFormModel.scale.setScalar(0.2);
+                    trueFormModel.visible = false;
+                    activeEntityContainer.add(trueFormModel);
+                    document.getElementById('true-form-btn').style.display = 'inline-block';
+                });
+            } else {
+                // Procedural fallback True Form asset if link is blank
+                const geom = new THREE.IcosahedronGeometry(0.12, 1);
+                const mat = new THREE.MeshStandardMaterial({ color: 0xff0000, wireframe: true });
+                trueFormModel = new THREE.Mesh(geom, mat);
+                trueFormModel.visible = false;
+                activeEntityContainer.add(trueFormModel);
+                document.getElementById('true-form-btn').style.display = 'inline-block';
+            }
+        }
+
+        function startIntroSequence() {
+            if (introPlaying) return;
+            introPlaying = true;
+            document.getElementById('trigger-btn').style.display = 'none';
+
+            const userPos = new THREE.Vector3(), userDir = new THREE.Vector3();
+            camera.getWorldPosition(userPos);
+            camera.getWorldDirection(userDir);
+
+            // Lock box spawn 1.2m ahead of headset
+            boxGroup.position.copy(userPos).add(userDir.multiplyScalar(1.2));
+            boxGroup.position.y = Math.max(userPos.y - 0.4, 0.2); 
+            boxGroup.lookAt(userPos.x, boxGroup.position.y, userPos.z);
+            boxGroup.visible = true;
+
+            activeEntityContainer.position.copy(boxGroup.position).add(new THREE.Vector3(0, 0.15, 0));
+
+            let progress = 0;
+            const seqInterval = setInterval(() => {
+                progress += 0.016;
+
+                if (progress < 1.5) {
+                    // Stage 1: Box shakes slightly
+                    boxGroup.position.x += Math.sin(progress * 80) * 0.003;
+                } else if (progress >= 1.5 && progress < 3.0) {
+                    // Stage 2: Lid opens smoothly via pivot point
+                    if (boxLidPivot.rotation.x > -Math.PI * 0.65) {
+                        boxLidPivot.rotation.x -= 0.03;
+                    }
+                    // Entity slowly levitates out
+                    activeEntityContainer.visible = true;
+                    activeEntityContainer.position.y += 0.004;
+                } else {
+                    // Stage 3: Stabilization, activation complete
+                    clearInterval(seqInterval);
+                    introPlaying = false;
+                }
+            }, 16);
+        }
+
+        function toggleTrueForm() {
+            isTrueForm = !isTrueForm;
+            if (isTrueForm) {
+                ballModel.visible = false;
+                trueFormModel.visible = true;
+            } else {
+                ballModel.visible = true;
+                trueFormModel.visible = false;
+            }
+        }
+
+        function checkHandGrabbing(frame, referenceSpace) {
+            if (introPlaying || !activeEntityContainer.visible) return;
+
+            // If an object is already grabbed, track its placement to that specific hand
+            if (grabbedHand) {
+                const inputSource = renderer.xr.getController(grabbedHand === 'hand1' ? 0 : 1);
+                activeEntityContainer.position.copy(inputSource.position);
+                activeEntityContainer.rotation.copy(inputSource.rotation);
+                
+                // Release condition: simplified by tracking if hand tracking is active or via automated timer
+                return;
+            }
+
+            // Proximity checking for pickup mechanics
+            ['hand1', 'hand2'].forEach((handKey, index) => {
+                const handHand = handJointsData[handKey].source;
+                if (!handHand) return;
+
+                // Index finger tip joint index is 8
+                const indexTipJoint = handHand.get('index-finger-tip');
+                if (!indexTipJoint) return;
+
+                const jointPose = frame.getJointPose(indexTipJoint, referenceSpace);
+                if (jointPose) {
+                    const jointPos = new THREE.Vector3(
+                        jointPose.transform.position.x,
+                        jointPose.transform.position.y,
+                        jointPose.transform.position.z
+                    );
+
+                    const dist = jointPos.distanceTo(activeEntityContainer.position);
+                    if (dist < 0.15) { // Grab range threshold 15cm
+                        grabbedHand = handKey;
+                    }
+                }
+            });
+        }
+
+        function setupEnvironmentVoxels() {
+            const geometry = new THREE.BoxGeometry(VOXEL_SIZE, VOXEL_SIZE, VOXEL_SIZE);
+            const material = new THREE.MeshStandardMaterial({ color: 0x3b2f23, roughness: 0.9 });
+            instancedMesh = new THREE.InstancedMesh(geometry, material, MAX_VOXELS);
+            scene.add(instancedMesh);
+            dummy = new THREE.Object3D();
+        }
+
+        function processMeshToVoxels(frame) {
+            if (!frame.detectedMeshes) return;
+            const referenceSpace = renderer.xr.getReferenceSpace();
+            const voxelGrid = new Set();
+            let count = 0;
+
+            frame.detectedMeshes.forEach(mesh => {
+                const pose = frame.getPose(mesh.meshSpace, referenceSpace);
+                if (!pose) return;
+
+                const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
+                const vertices = mesh.vertices;
+
+                for (let i = 0; i < vertices.length; i += 18) { // Performance stride
+                    let v = new THREE.Vector3(vertices[i], vertices[i+1], vertices[i+2]).applyMatrix4(matrix);
+                    let gx = Math.round(v.x / VOXEL_SIZE) * VOXEL_SIZE;
+                    let gy = Math.round(v.y / VOXEL_SIZE) * VOXEL_SIZE;
+                    let gz = Math.round(v.z / VOXEL_SIZE) * VOXEL_SIZE;
+                    let hash = `${gx}_${gy}_${gz}`;
+
+                    if (!voxelGrid.has(hash) && count < MAX_VOXELS) {
+                        voxelGrid.add(hash);
+                        dummy.position.set(gx, gy, gz);
+                        dummy.updateMatrix();
+                        instancedMesh.setMatrixAt(count, dummy.matrix);
+                        count++;
+                    }
+                }
+            });
+            instancedMesh.count = count;
+            instancedMesh.instanceMatrix.needsUpdate = true;
+        }
+
+        function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        window.addEventListener('resize', onResize);
+        function animate() {
+            renderer.setAnimationLoop((timestamp, frame) => {
+                if (frame) {
+                    const refSpace = renderer.xr.getReferenceSpace();
+                    processMeshToVoxels(frame);
+                    checkHandGrabbing(frame, refSpace);
+                }
+
+                // Ambient item idle rotation when not held
+                if (!grabbedHand && activeEntityContainer.visible) {
+                    activeEntityContainer.rotation.y += isTrueForm ? 0.06 : 0.01;
+                }
+
+                renderer.render(scene, camera);
+            });
+        }
     </script>
 </body>
 </html>
