@@ -43,7 +43,23 @@
             text-shadow: 0 0 6px rgba(0,0,0,0.8);
             pointer-events: none;
             z-index: 10;
+            white-space: pre-line;
         }
+        #ar-start-btn {
+            position: fixed;
+            bottom: 20px; left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            background: #111;
+            border: 1px solid #4CAF50;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 999;
+        }
+        #ar-start-btn:disabled { opacity: 0.5; cursor: default; }
     </style>
     <script type="importmap">
         {
@@ -56,13 +72,13 @@
 </head>
 <body>
     <div id="status-label"></div>
+    <button id="ar-start-btn">Start AR</button>
     <div id="overlay">
         <button id="trigger-btn">Trigger Verity Intro</button>
     </div>
 
     <script type="module">
         import * as THREE from 'three';
-        import { ARButton } from 'three/addons/webxr/ARButton.js';
         import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 
         // ---------------------------------------------------------------
@@ -138,12 +154,7 @@
             renderer.toneMappingExposure = 1.1;
             document.body.appendChild(renderer.domElement);
 
-            const arButton = ARButton.createButton(renderer, {
-                requiredFeatures: ['local-floor', 'hand-tracking', 'dom-overlay'],
-                optionalFeatures: ['mesh-detection'],
-                domOverlay: { root: document.getElementById('overlay') }
-            });
-            document.body.appendChild(arButton);
+            setupARStartButton();
 
             renderer.xr.addEventListener('sessionstart', () => {
                 document.getElementById('trigger-btn').style.display = 'block';
@@ -172,6 +183,70 @@
 
             document.getElementById('trigger-btn').addEventListener('click', startIntro);
             window.addEventListener('resize', onWindowResize);
+        }
+
+        // A custom AR start button (instead of the three.js ARButton helper)
+        // so that a failed/rejected requestSession() call is visible on screen
+        // instead of silently doing nothing when tapped in the headset.
+        function setupARStartButton() {
+            const btn = document.getElementById('ar-start-btn');
+            let currentSession = null;
+
+            if (!('xr' in navigator)) {
+                btn.textContent = 'WebXR not available in this browser';
+                btn.disabled = true;
+                return;
+            }
+
+            navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+                if (!supported) {
+                    btn.textContent = 'Immersive AR not supported here';
+                    btn.disabled = true;
+                }
+            });
+
+            btn.addEventListener('click', () => {
+                if (currentSession) {
+                    currentSession.end();
+                    return;
+                }
+
+                statusLabel.textContent = '';
+                btn.disabled = true;
+                btn.textContent = 'Starting…';
+
+                // Only 'local-floor' is strictly required. hand-tracking and
+                // dom-overlay are requested as optional so the session can
+                // still start (without hands / without the overlay UI) on
+                // devices/OS states where that permission hasn't been
+                // granted yet, rather than requestSession() rejecting outright.
+                const sessionInit = {
+                    requiredFeatures: ['local-floor'],
+                    optionalFeatures: ['hand-tracking', 'dom-overlay', 'mesh-detection'],
+                    domOverlay: { root: document.getElementById('overlay') }
+                };
+
+                navigator.xr.requestSession('immersive-ar', sessionInit).then(
+                    async (session) => {
+                        currentSession = session;
+                        btn.textContent = 'Stop AR';
+                        btn.disabled = false;
+                        await renderer.xr.setSession(session);
+                        session.addEventListener('end', () => {
+                            currentSession = null;
+                            btn.textContent = 'Start AR';
+                            btn.disabled = false;
+                        });
+                    },
+                    (err) => {
+                        // This is the failure that previously happened silently.
+                        console.error('immersive-ar session request failed:', err);
+                        statusLabel.textContent = 'AR session failed to start:\n' + (err && err.message ? err.message : err);
+                        btn.textContent = 'Start AR';
+                        btn.disabled = false;
+                    }
+                );
+            });
         }
 
         // A transparent plane that only shows shadows, so Verity's shadow
