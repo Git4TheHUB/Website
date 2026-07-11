@@ -1,226 +1,304 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>WebXR Verity Mixed Reality</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
-        #overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; /* Let touches pass through to WebXR */
-            display: flex;
-            justify-content: center;
-            align-items: flex-end;
-            padding-bottom: 40px;
-            z-index: 10;
-        }
-        #trigger-btn {
-            pointer-events: auto; /* Make button clickable */
-            padding: 15px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            color: white;
-            background-color: #4CAF50;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            display: none; /* Hidden until AR starts */
-        }
-    </style>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
-    </script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HE IS COMING</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Creepster&family=Courier+Prime:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #000; overflow: hidden;
+    font-family: 'Courier Prime', monospace;
+    -webkit-user-select: none; user-select: none;
+  }
+  #stage { position: fixed; inset: 0; }
+  video#cam {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; background: #000;
+  }
+  canvas#overlay {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  #ui {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    background: radial-gradient(ellipse at center, #1a0000 0%, #000 75%);
+    padding: 24px; z-index: 10;
+  }
+  #ui h1 {
+    font-family: 'Creepster', cursive;
+    color: #c0392b;
+    font-size: 15vw;
+    max-width: 90vw;
+    text-shadow: 0 0 18px #700, 0 0 40px #400;
+    margin: 0 0 8px;
+    letter-spacing: 2px;
+  }
+  #ui p { color: #999; max-width: 480px; line-height: 1.5; font-size: 14px; }
+  #ui button {
+    margin-top: 22px; padding: 14px 30px; font-size: 16px;
+    font-family: 'Courier Prime', monospace; font-weight: 700;
+    background: #8b0000; color: #fff; border: 1px solid #c0392b;
+    border-radius: 6px; cursor: pointer; letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  #ui button:active { background: #5c0000; }
+  #ui button:disabled { opacity: 0.4; }
+  #status {
+    position: fixed; top: 10px; left: 10px; right: 10px;
+    font-size: 11px; color: #d35400; z-index: 20;
+    text-shadow: 0 0 4px #000; pointer-events: none;
+    font-family: 'Courier Prime', monospace;
+  }
+  #exitBtn {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 20; background: rgba(0,0,0,0.55); color: #eee;
+    border: 1px solid #444; border-radius: 20px; padding: 8px 18px;
+    font-size: 12px; font-family: 'Courier Prime', monospace;
+  }
+  .hidden { display: none !important; }
+</style>
 </head>
 <body>
-    <div id="overlay">
-        <button id="trigger-btn">Trigger Verity Intro</button>
-    </div>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { ARButton } from 'three/addons/webxr/ARButton.js';
-        import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
+<div id="stage">
+  <video id="cam" autoplay playsinline muted></video>
+  <canvas id="overlay"></canvas>
+</div>
 
-        let camera, scene, renderer;
-        let hand1, hand2;
-        let entityBox, veritySphere;
-        let introPlaying = false;
-        
-        // Dictionary to store real-world meshes mapped by WebXR
-        const roomMeshes = new Map();
+<div id="status" class="hidden"></div>
+<button id="exitBtn" class="hidden">stop</button>
 
-        init();
-        animate();
+<div id="ui">
+  <h1>HE IS<br>COMING</h1>
+  <p>
+    This uses your camera to scan the world around you for text — signs, labels,
+    packaging, anything with letters — and quietly replaces it with a message.
+    Point your phone at printed text in good light. Nothing is recorded or sent
+    anywhere; all processing happens on your device.
+  </p>
+  <button id="startBtn">Begin</button>
+</div>
 
-        function init() {
-            // 1. Scene Setup
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+<!-- Tesseract.js for on-device OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+(async () => {
+  const startBtn = document.getElementById('startBtn');
+  const exitBtn = document.getElementById('exitBtn');
+  const ui = document.getElementById('ui');
+  const statusEl = document.getElementById('status');
+  const video = document.getElementById('cam');
+  const overlay = document.getElementById('overlay');
+  const octx = overlay.getContext('2d');
 
-            // 2. Lighting
-            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            light.position.set(0.5, 1, 0.25);
-            scene.add(light);
+  let worker = null;
+  let running = false;
+  let boxes = []; // current detected+styled boxes in VIDEO pixel space
+  let stream = null;
+  let procCanvas = document.createElement('canvas');
+  let procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
+  let fullCanvas = document.createElement('canvas');
+  let fullCtx = fullCanvas.getContext('2d', { willReadFrequently: true });
 
-            // 3. Renderer Setup
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            document.body.appendChild(renderer.domElement);
+  const MSG = "he is coming";
 
-            // 4. Request AR Session with specific features
-            const arButton = ARButton.createButton(renderer, {
-                requiredFeatures: ['local-floor', 'hand-tracking', 'dom-overlay'],
-                optionalFeatures: ['mesh-detection'],
-                domOverlay: { root: document.getElementById('overlay') }
-            });
-            document.body.appendChild(arButton);
+  function setStatus(t) { statusEl.textContent = t; }
 
-            renderer.xr.addEventListener('sessionstart', () => {
-                document.getElementById('trigger-btn').style.display = 'block';
-            });
-            renderer.xr.addEventListener('sessionend', () => {
-                document.getElementById('trigger-btn').style.display = 'none';
-            });
+  function resizeOverlay() {
+    overlay.width = window.innerWidth * devicePixelRatio;
+    overlay.height = window.innerHeight * devicePixelRatio;
+    overlay.style.width = window.innerWidth + 'px';
+    overlay.style.height = window.innerHeight + 'px';
+  }
+  window.addEventListener('resize', resizeOverlay);
+  resizeOverlay();
 
-            // 5. Hand Tracking Setup
-            const handModelFactory = new XRHandModelFactory();
-            
-            hand1 = renderer.xr.getHand(0);
-            hand1.add(handModelFactory.createHandModel(hand1, "mesh"));
-            scene.add(hand1);
+  // Maps a point in VIDEO pixel space to on-screen canvas space,
+  // replicating CSS object-fit: cover behavior.
+  function videoToScreen(x, y) {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const cw = overlay.width, ch = overlay.height;
+    const scale = Math.max(cw / vw, ch / vh);
+    const dw = vw * scale, dh = vh * scale;
+    const ox = (cw - dw) / 2, oy = (ch - dh) / 2;
+    return { x: ox + x * scale, y: oy + y * scale, scale };
+  }
 
-            hand2 = renderer.xr.getHand(1);
-            hand2.add(handModelFactory.createHandModel(hand2, "mesh"));
-            scene.add(hand2);
+  function luminance(r, g, b) {
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
 
-            // 6. Setup Verity Intro Objects (Hidden initially)
-            setupVerityIntro();
+  function avgColor(ctx, x, y, w, h, cw, ch) {
+    x = Math.max(0, Math.floor(x)); y = Math.max(0, Math.floor(y));
+    w = Math.max(1, Math.floor(w)); h = Math.max(1, Math.floor(h));
+    if (x + w > cw) w = cw - x;
+    if (y + h > ch) h = ch - y;
+    if (w <= 0 || h <= 0) return { r: 128, g: 128, b: 128 };
+    let data;
+    try { data = ctx.getImageData(x, y, w, h).data; }
+    catch (e) { return { r: 128, g: 128, b: 128 }; }
+    let r = 0, g = 0, b = 0, n = 0;
+    const step = 4 * 3; // sample every 3rd pixel for speed
+    for (let i = 0; i < data.length; i += step) {
+      r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
+    }
+    if (!n) return { r: 128, g: 128, b: 128 };
+    return { r: r / n, g: g / n, b: b / n };
+  }
 
-            // 7. Event Listeners
-            document.getElementById('trigger-btn').addEventListener('click', startIntro);
-            window.addEventListener('resize', onWindowResize);
-        }
+  function roundRectPath(ctx, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
 
-        function setupVerityIntro() {
-            // The Box
-            const boxGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
-            const boxMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, wireframe: false });
-            entityBox = new THREE.Mesh(boxGeo, boxMat);
-            entityBox.visible = false;
-            scene.add(entityBox);
+  function render() {
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    for (const b of boxes) {
+      const p1 = videoToScreen(b.x0, b.y0);
+      const p2 = videoToScreen(b.x1, b.y1);
+      const x = Math.min(p1.x, p2.x), y = Math.min(p1.y, p2.y);
+      const w = Math.abs(p2.x - p1.x), h = Math.abs(p2.y - p1.y);
+      const pad = h * 0.28;
+      const bx = x - pad, by = y - pad, bw = w + pad * 2, bh = h + pad * 2;
 
-            // The Entity (Sphere)
-            const sphereGeo = new THREE.SphereGeometry(0.15, 32, 32);
-            const sphereMat = new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x004400 });
-            veritySphere = new THREE.Mesh(sphereGeo, sphereMat);
-            veritySphere.visible = false;
-            scene.add(veritySphere);
-        }
+      // blended blob: gradient between the on-text color and the surrounding color
+      const grad = octx.createLinearGradient(bx, by, bx + bw, by + bh);
+      grad.addColorStop(0, `rgba(${b.text.r|0},${b.text.g|0},${b.text.b|0},0.92)`);
+      grad.addColorStop(1, `rgba(${b.bg.r|0},${b.bg.g|0},${b.bg.b|0},0.92)`);
 
-        function startIntro() {
-            if (introPlaying) return;
-            introPlaying = true;
+      octx.save();
+      octx.shadowColor = 'rgba(120,0,0,0.55)';
+      octx.shadowBlur = 14;
+      roundRectPath(octx, bx, by, bw, bh, bh * 0.35);
+      octx.fillStyle = grad;
+      octx.fill();
+      octx.restore();
 
-            // Get camera position to spawn the box in front of the user
-            const userPosition = new THREE.Vector3();
-            camera.getWorldPosition(userPosition);
-            const userDirection = new THREE.Vector3();
-            camera.getWorldDirection(userDirection);
+      // contrasting fake text
+      const blended = {
+        r: (b.text.r + b.bg.r) / 2,
+        g: (b.text.g + b.bg.g) / 2,
+        b: (b.text.b + b.bg.b) / 2
+      };
+      const isDark = luminance(blended.r, blended.g, blended.b) < 128;
+      octx.fillStyle = isDark ? '#f2e5e5' : '#1a0000';
+      octx.strokeStyle = isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.35)';
+      octx.lineWidth = Math.max(1, h * 0.03);
+      let fontSize = Math.max(10, bh * 0.42);
+      octx.font = `700 ${fontSize}px 'Courier Prime', monospace`;
+      // shrink to fit width
+      while (octx.measureText(b.label).width > bw * 0.94 && fontSize > 8) {
+        fontSize -= 1;
+        octx.font = `700 ${fontSize}px 'Courier Prime', monospace`;
+      }
+      octx.textAlign = 'center';
+      octx.textBaseline = 'middle';
+      const cx = bx + bw / 2, cy = by + bh / 2;
+      octx.strokeText(b.label, cx, cy);
+      octx.fillText(b.label, cx, cy);
+      octx.restore();
+    }
+    requestAnimationFrame(render);
+  }
 
-            // Position box 1.5 meters in front, slightly above eye level
-            entityBox.position.copy(userPosition).add(userDirection.multiplyScalar(1.5));
-            entityBox.position.y += 0.5;
-            entityBox.visible = true;
+  async function ocrLoop() {
+    if (!running) return;
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) { setTimeout(ocrLoop, 200); return; }
 
-            // Position sphere inside the box
-            veritySphere.position.copy(entityBox.position);
-            veritySphere.visible = true;
+    // full-res frame for color sampling
+    fullCanvas.width = vw; fullCanvas.height = vh;
+    fullCtx.drawImage(video, 0, 0, vw, vh);
 
-            // Simple Animation Sequence (Box floats, sphere drops)
-            let time = 0;
-            const dropInterval = setInterval(() => {
-                time += 0.016; // rough 60fps delta
-                
-                // Float the box slightly
-                entityBox.rotation.y += 0.02;
-                entityBox.rotation.x += 0.01;
+    // downscaled frame for OCR speed
+    const scale = Math.min(1, 720 / Math.max(vw, vh));
+    const pw = Math.round(vw * scale), ph = Math.round(vh * scale);
+    procCanvas.width = pw; procCanvas.height = ph;
+    procCtx.drawImage(video, 0, 0, pw, ph);
 
-                if (time > 2.0) { // After 2 seconds, drop the sphere
-                    if (veritySphere.position.y > 0.15) { // Drop until it hits the floor (y=0.15 is radius)
-                        veritySphere.position.y -= 0.05; // Gravity simulation
-                    } else {
-                        // Impact! Bounce slightly
-                        veritySphere.position.y = 0.15;
-                        clearInterval(dropInterval);
-                        introPlaying = false;
-                    }
-                }
-            }, 16);
-        }
+    setStatus('scanning for text…');
+    try {
+      const { data } = await worker.recognize(procCanvas);
+      const words = (data.words || []).filter(w =>
+        w.confidence > 55 &&
+        w.text.trim().replace(/[^A-Za-z0-9]/g, '').length >= 2 &&
+        (w.bbox.x1 - w.bbox.x0) > 6 && (w.bbox.y1 - w.bbox.y0) > 6
+      );
 
-        function processRealWorldMeshes(frame) {
-            // The mesh-detection API is highly experimental.
-            // This reads the raw geometry data from the headset's spatial mapping.
-            if (!frame.detectedMeshes) return;
+      const newBoxes = words.slice(0, 24).map(w => {
+        const x0 = w.bbox.x0 / scale, y0 = w.bbox.y0 / scale;
+        const x1 = w.bbox.x1 / scale, y1 = w.bbox.y1 / scale;
+        const bw = x1 - x0, bh = y1 - y0;
+        const text = avgColor(fullCtx, x0, y0, bw, bh, vw, vh);
+        const pad = bh;
+        const bg = avgColor(fullCtx, x0 - pad, y0 - pad, bw + pad * 2, bh + pad * 2, vw, vh);
+        return { x0, y0, x1, y1, text, bg, label: MSG };
+      });
 
-            frame.detectedMeshes.forEach(xrMesh => {
-                let threeMesh = roomMeshes.get(xrMesh);
+      boxes = newBoxes;
+      setStatus(newBoxes.length ? `${newBoxes.length} word(s) overwritten` : 'looking…');
+    } catch (e) {
+      setStatus('ocr error, retrying…');
+    }
+    if (running) setTimeout(ocrLoop, 60);
+  }
 
-                if (!threeMesh) {
-                    // Create a new Three.js mesh for new physical geometry
-                    const geometry = new THREE.BufferGeometry();
-                    // Voxel-style material
-                    const material = new THREE.MeshBasicMaterial({ 
-                        color: 0x00aaff, 
-                        wireframe: true, // Set to true to see the raw geometry scan
-                        transparent: true,
-                        opacity: 0.3
-                    });
-                    threeMesh = new THREE.Mesh(geometry, material);
-                    scene.add(threeMesh);
-                    roomMeshes.set(xrMesh, threeMesh);
-                }
+  async function start() {
+    startBtn.disabled = true;
+    startBtn.textContent = 'starting camera…';
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
+    } catch (e) {
+      alert('Camera access failed: ' + e.message + '\n\nThis needs camera permission and works best on a phone browser (Chrome/Safari) over HTTPS.');
+      startBtn.disabled = false;
+      startBtn.textContent = 'Begin';
+      return;
+    }
+    video.srcObject = stream;
+    await video.play();
 
-                // Update the geometry vertices as the headset scans the room
-                const vertices = xrMesh.vertices;
-                const indices = xrMesh.indices;
+    setStatus('loading text recognition engine…');
+    worker = await Tesseract.createWorker('eng');
+    await worker.setParameters({ tessedit_pageseg_mode: '11' }); // sparse text
 
-                threeMesh.geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-                if (indices) {
-                    threeMesh.geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-                }
-                
-                // Update transformation matrix to lock it to the real world
-                const transform = frame.getPose(xrMesh.semanticSpace, renderer.xr.getReferenceSpace()).transform;
-                threeMesh.matrix.fromArray(transform.matrix);
-                threeMesh.matrixAutoUpdate = false;
-            });
-        }
+    ui.classList.add('hidden');
+    statusEl.classList.remove('hidden');
+    exitBtn.classList.remove('hidden');
+    running = true;
+    render();
+    ocrLoop();
+  }
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
+  async function stop() {
+    running = false;
+    boxes = [];
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    if (worker) { await worker.terminate(); worker = null; }
+    ui.classList.remove('hidden');
+    statusEl.classList.add('hidden');
+    exitBtn.classList.add('hidden');
+    startBtn.disabled = false;
+    startBtn.textContent = 'Begin';
+  }
 
-        function animate() {
-            renderer.setAnimationLoop((timestamp, frame) => {
-                if (frame) {
-                    // Process real-time environment meshing
-                    processRealWorldMeshes(frame);
-                }
-                renderer.render(scene, camera);
-            });
-        }
-    </script>
+  startBtn.addEventListener('click', start);
+  exitBtn.addEventListener('click', stop);
+})();
+</script>
 </body>
 </html>
