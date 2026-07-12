@@ -39,7 +39,7 @@
     margin: 0 0 8px;
     letter-spacing: 2px;
   }
-  #ui p { color: #999; max-width: 480px; line-height: 1.5; font-size: 14px; }
+  #ui p { color: #999; max-width: 480px; line-height: 1.5; font-size: 13px; }
   #ui button {
     margin-top: 22px; padding: 14px 30px; font-size: 16px;
     font-family: 'Courier Prime', monospace; font-weight: 700;
@@ -53,7 +53,7 @@
     position: fixed; top: 10px; left: 10px; right: 10px;
     font-size: 11px; color: #d35400; z-index: 20;
     text-shadow: 0 0 4px #000; pointer-events: none;
-    font-family: 'Courier Prime', monospace;
+    font-family: 'Courier Prime', monospace; white-space: pre-line;
   }
   #exitBtn {
     position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
@@ -77,15 +77,15 @@
 <div id="ui">
   <h1>HE IS<br>COMING</h1>
   <p>
-    This uses your camera to scan the world around you for text — signs, labels,
-    packaging, anything with letters — and quietly replaces it with a message.
-    Point your phone at printed text in good light. Nothing is recorded or sent
-    anywhere; all processing happens on your device.
+    Scans real text around you with your camera and replaces it in place —
+    rotated to match the real text angle, blended into the real lighting/texture
+    underneath it. Two OCR passes run in parallel for accuracy, and boxes are
+    tracked across frames so they stay locked on instead of flickering.
+    Works best on printed text in decent light. Nothing leaves your device.
   </p>
   <button id="startBtn">Begin</button>
 </div>
 
-<!-- Tesseract.js for on-device OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script>
 (async () => {
@@ -97,16 +97,24 @@
   const overlay = document.getElementById('overlay');
   const octx = overlay.getContext('2d');
 
-  let worker = null;
-  let running = false;
-  let boxes = []; // current detected+styled boxes in VIDEO pixel space
-  let stream = null;
-  let procCanvas = document.createElement('canvas');
-  let procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
-  let fullCanvas = document.createElement('canvas');
-  let fullCtx = fullCanvas.getContext('2d', { willReadFrequently: true });
-
   const MSG = "he is coming";
+
+  let scheduler = null;
+  let running = false;
+  let stream = null;
+  let tracks = [];        // confirmed + candidate tracks, in VIDEO pixel space
+  let nextId = 1;
+
+  // orientation-based "glue" between OCR updates
+  let lastOrient = null;
+  let orientDelta = { dx: 0, dy: 0 };
+
+  const procCanvas = document.createElement('canvas');
+  const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
+  const fullCanvas = document.createElement('canvas');
+  const fullCtx = fullCanvas.getContext('2d', { willReadFrequently: true });
+  const cropCanvas = document.createElement('canvas');
+  const cropCtx = cropCanvas.getContext('2d');
 
   function setStatus(t) { statusEl.textContent = t; }
 
@@ -119,20 +127,16 @@
   window.addEventListener('resize', resizeOverlay);
   resizeOverlay();
 
-  // Maps a point in VIDEO pixel space to on-screen canvas space,
-  // replicating CSS object-fit: cover behavior.
   function videoToScreen(x, y) {
     const vw = video.videoWidth, vh = video.videoHeight;
     const cw = overlay.width, ch = overlay.height;
     const scale = Math.max(cw / vw, ch / vh);
     const dw = vw * scale, dh = vh * scale;
     const ox = (cw - dw) / 2, oy = (ch - dh) / 2;
-    return { x: ox + x * scale, y: oy + y * scale, scale };
+    return { x: ox + x * scale + orientDelta.dx, y: oy + y * scale + orientDelta.dy, scale };
   }
 
-  function luminance(r, g, b) {
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  }
+  function luminance(r, g, b) { return 0.2126 * r + 0.7152 * g + 0.0722 * b; }
 
   function avgColor(ctx, x, y, w, h, cw, ch) {
     x = Math.max(0, Math.floor(x)); y = Math.max(0, Math.floor(y));
@@ -141,19 +145,26 @@
     if (y + h > ch) h = ch - y;
     if (w <= 0 || h <= 0) return { r: 128, g: 128, b: 128 };
     let data;
-    try { data = ctx.getImageData(x, y, w, h).data; }
-    catch (e) { return { r: 128, g: 128, b: 128 }; }
+    try { data = ctx.getImageData(x, y, w, h).data; } catch (e) { return { r: 128, g: 128, b: 128 }; }
     let r = 0, g = 0, b = 0, n = 0;
-    const step = 4 * 3; // sample every 3rd pixel for speed
-    for (let i = 0; i < data.length; i += step) {
-      r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
-    }
+    for (let i = 0; i < data.length; i += 16) { r += data[i]; g += data[i+1]; b += data[i+2]; n++; }
     if (!n) return { r: 128, g: 128, b: 128 };
     return { r: r / n, g: g / n, b: b / n };
   }
 
+  function iou(a, b) {
+    const x0 = Math.max(a.x0, b.x0), y0 = Math.max(a.y0, b.y0);
+    const x1 = Math.min(a.x1, b.x1), y1 = Math.min(a.y1, b.y1);
+    const iw = Math.max(0, x1 - x0), ih = Math.max(0, y1 - y0);
+    const inter = iw * ih;
+    const areaA = (a.x1 - a.x0) * (a.y1 - a.y0);
+    const areaB = (b.x1 - b.x0) * (b.y1 - b.y0);
+    const union = areaA + areaB - inter;
+    return union > 0 ? inter / union : 0;
+  }
+
   function roundRectPath(ctx, x, y, w, h, r) {
-    r = Math.min(r, w / 2, h / 2);
+    r = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -163,54 +174,169 @@
     ctx.closePath();
   }
 
+  // ---- device orientation glue: shift boxes slightly between OCR updates ----
+  function handleOrientation(e) {
+    if (e.alpha == null) return;
+    const cur = { a: e.alpha, b: e.beta, g: e.gamma };
+    if (lastOrient) {
+      let da = cur.a - lastOrient.a;
+      if (da > 180) da -= 360; if (da < -180) da += 360;
+      const db = cur.b - lastOrient.b;
+      const SENS = 6.5; // px per degree, tuned rough estimate
+      orientDelta.dx -= da * SENS;
+      orientDelta.dy += db * SENS;
+      // clamp so drift can't run away if data is noisy
+      orientDelta.dx = Math.max(-250, Math.min(250, orientDelta.dx));
+      orientDelta.dy = Math.max(-250, Math.min(250, orientDelta.dy));
+    }
+    lastOrient = cur;
+  }
+
+  async function enableOrientation() {
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const res = await DeviceOrientationEvent.requestPermission();
+        if (res === 'granted') window.addEventListener('deviceorientation', handleOrientation);
+      } else {
+        window.addEventListener('deviceorientation', handleOrientation);
+      }
+    } catch (e) { /* no orientation available, fine */ }
+  }
+
+  // ---- render ----
   function render() {
     octx.clearRect(0, 0, overlay.width, overlay.height);
-    for (const b of boxes) {
-      const p1 = videoToScreen(b.x0, b.y0);
-      const p2 = videoToScreen(b.x1, b.y1);
-      const x = Math.min(p1.x, p2.x), y = Math.min(p1.y, p2.y);
-      const w = Math.abs(p2.x - p1.x), h = Math.abs(p2.y - p1.y);
-      const pad = h * 0.28;
-      const bx = x - pad, by = y - pad, bw = w + pad * 2, bh = h + pad * 2;
-
-      // blended blob: gradient between the on-text color and the surrounding color
-      const grad = octx.createLinearGradient(bx, by, bx + bw, by + bh);
-      grad.addColorStop(0, `rgba(${b.text.r|0},${b.text.g|0},${b.text.b|0},0.92)`);
-      grad.addColorStop(1, `rgba(${b.bg.r|0},${b.bg.g|0},${b.bg.b|0},0.92)`);
-
-      octx.save();
-      octx.shadowColor = 'rgba(120,0,0,0.55)';
-      octx.shadowBlur = 14;
-      roundRectPath(octx, bx, by, bw, bh, bh * 0.35);
-      octx.fillStyle = grad;
-      octx.fill();
-      octx.restore();
-
-      // contrasting fake text
-      const blended = {
-        r: (b.text.r + b.bg.r) / 2,
-        g: (b.text.g + b.bg.g) / 2,
-        b: (b.text.b + b.bg.b) / 2
-      };
-      const isDark = luminance(blended.r, blended.g, blended.b) < 128;
-      octx.fillStyle = isDark ? '#f2e5e5' : '#1a0000';
-      octx.strokeStyle = isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.35)';
-      octx.lineWidth = Math.max(1, h * 0.03);
-      let fontSize = Math.max(10, bh * 0.42);
-      octx.font = `700 ${fontSize}px 'Courier Prime', monospace`;
-      // shrink to fit width
-      while (octx.measureText(b.label).width > bw * 0.94 && fontSize > 8) {
-        fontSize -= 1;
-        octx.font = `700 ${fontSize}px 'Courier Prime', monospace`;
-      }
-      octx.textAlign = 'center';
-      octx.textBaseline = 'middle';
-      const cx = bx + bw / 2, cy = by + bh / 2;
-      octx.strokeText(b.label, cx, cy);
-      octx.fillText(b.label, cx, cy);
-      octx.restore();
+    // decay orientation delta softly each time a fresh OCR pass lands (reset in track update)
+    for (const t of tracks) {
+      if (t.hits < 2) continue; // require confirmation before drawing
+      drawTrack(t);
     }
     requestAnimationFrame(render);
+  }
+
+  function drawTrack(t) {
+    const p1 = videoToScreen(t.x0, t.y0);
+    const p2 = videoToScreen(t.x1, t.y1);
+    const x = Math.min(p1.x, p2.x), y = Math.min(p1.y, p2.y);
+    const w = Math.abs(p2.x - p1.x), h = Math.abs(p2.y - p1.y);
+    if (w < 4 || h < 4) return;
+    const pad = h * 0.30;
+    const bw = w + pad * 2, bh = h + pad * 2;
+
+    octx.save();
+    octx.translate(x + w / 2, y + h / 2);
+    octx.rotate(t.angle || 0);
+    const bx = -bw / 2, by = -bh / 2;
+
+    // clip to rounded patch shape
+    octx.save();
+    roundRectPath(octx, bx, by, bw, bh, bh * 0.32);
+    octx.clip();
+
+    // 1) real lighting/texture, blurred so letters vanish but shading survives
+    if (t.blurCanvas) {
+      octx.drawImage(t.blurCanvas, bx, by, bw, bh);
+    } else {
+      octx.fillStyle = `rgb(${t.bg.r|0},${t.bg.g|0},${t.bg.b|0})`;
+      octx.fillRect(bx, by, bw, bh);
+    }
+
+    // 2) tint toward the sampled text/background colors, keeping real light variation
+    const grad = octx.createLinearGradient(bx, by, bx + bw, by + bh);
+    grad.addColorStop(0, `rgba(${t.text.r|0},${t.text.g|0},${t.text.b|0},0.55)`);
+    grad.addColorStop(1, `rgba(${t.bg.r|0},${t.bg.g|0},${t.bg.b|0},0.55)`);
+    octx.fillStyle = grad;
+    octx.globalCompositeOperation = 'overlay';
+    octx.fillRect(bx, by, bw, bh);
+    octx.globalCompositeOperation = 'source-over';
+
+    // slight vignette edge so it doesn't look like a hard sticker
+    octx.strokeStyle = 'rgba(0,0,0,0.25)';
+    octx.lineWidth = 2;
+    roundRectPath(octx, bx + 1, by + 1, bw - 2, bh - 2, bh * 0.3);
+    octx.stroke();
+    octx.restore(); // undo clip
+
+    // 3) fake text, contrast-matched
+    const blended = { r: (t.text.r + t.bg.r) / 2, g: (t.text.g + t.bg.g) / 2, b: (t.text.b + t.bg.b) / 2 };
+    const isDark = luminance(blended.r, blended.g, blended.b) < 128;
+    octx.fillStyle = isDark ? '#f2e5e5' : '#160303';
+    octx.strokeStyle = isDark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.35)';
+    octx.lineWidth = Math.max(1, h * 0.03);
+    let fontSize = Math.max(10, bh * 0.4);
+    octx.font = `700 ${fontSize}px 'Courier Prime', monospace`;
+    while (octx.measureText(t.label).width > bw * 0.94 && fontSize > 8) {
+      fontSize -= 1;
+      octx.font = `700 ${fontSize}px 'Courier Prime', monospace`;
+    }
+    octx.textAlign = 'center';
+    octx.textBaseline = 'middle';
+    octx.strokeText(t.label, 0, 0);
+    octx.fillText(t.label, 0, 0);
+    octx.restore();
+  }
+
+  // ---- OCR pipeline ----
+  function preprocess(vw, vh) {
+    const scale = Math.min(1, 900 / Math.max(vw, vh));
+    const pw = Math.round(vw * scale), ph = Math.round(vh * scale);
+    procCanvas.width = pw; procCanvas.height = ph;
+    procCtx.filter = 'grayscale(1) contrast(1.45) brightness(1.08)';
+    procCtx.drawImage(video, 0, 0, pw, ph);
+    procCtx.filter = 'none';
+    return scale;
+  }
+
+  function wordAngle(w) {
+    if (w.baseline && (w.baseline.x1 - w.baseline.x0) !== 0) {
+      return Math.atan2(w.baseline.y1 - w.baseline.y0, w.baseline.x1 - w.baseline.x0);
+    }
+    return 0;
+  }
+
+  function makeBlurCrop(x0, y0, x1, y1, vw, vh) {
+    const pad = (y1 - y0);
+    const bx = Math.max(0, x0 - pad), by = Math.max(0, y0 - pad);
+    const bw = Math.min(vw - bx, (x1 - x0) + pad * 2);
+    const bh = Math.min(vh - by, (y1 - y0) + pad * 2);
+    if (bw <= 1 || bh <= 1) return null;
+    cropCanvas.width = bw; cropCanvas.height = bh;
+    cropCtx.filter = 'blur(6px) saturate(1.1)';
+    cropCtx.drawImage(fullCanvas, bx, by, bw, bh, 0, 0, bw, bh);
+    cropCtx.filter = 'none';
+    const out = document.createElement('canvas');
+    out.width = bw; out.height = bh;
+    out.getContext('2d').drawImage(cropCanvas, 0, 0);
+    return out;
+  }
+
+  function updateTracks(detections, vw, vh) {
+    const used = new Set();
+    const originalCount = tracks.length;
+    for (const d of detections) {
+      let best = -1, bestIou = 0.2;
+      tracks.forEach((t, i) => {
+        if (used.has(i)) return;
+        const s = iou(t, d);
+        if (s > bestIou) { bestIou = s; best = i; }
+      });
+      if (best >= 0) {
+        const t = tracks[best];
+        t.x0 = t.x0 * 0.5 + d.x0 * 0.5; t.y0 = t.y0 * 0.5 + d.y0 * 0.5;
+        t.x1 = t.x1 * 0.5 + d.x1 * 0.5; t.y1 = t.y1 * 0.5 + d.y1 * 0.5;
+        t.text = d.text; t.bg = d.bg; t.angle = d.angle; t.blurCanvas = d.blurCanvas;
+        t.hits = Math.min(t.hits + 1, 6); t.misses = 0;
+        used.add(best);
+      } else {
+        tracks.push({ id: nextId++, ...d, hits: 1, misses: 0 });
+      }
+    }
+    // age out only pre-existing tracks that weren't matched this cycle (leave brand-new ones alone)
+    for (let i = 0; i < originalCount; i++) { if (!used.has(i)) tracks[i].misses++; }
+    tracks = tracks.filter(t => t.misses < 3);
+    // OCR pass just landed: fresh ground truth, decay accumulated orientation drift
+    orientDelta.dx *= 0.15; orientDelta.dy *= 0.15;
   }
 
   async function ocrLoop() {
@@ -218,41 +344,47 @@
     const vw = video.videoWidth, vh = video.videoHeight;
     if (!vw || !vh) { setTimeout(ocrLoop, 200); return; }
 
-    // full-res frame for color sampling
     fullCanvas.width = vw; fullCanvas.height = vh;
     fullCtx.drawImage(video, 0, 0, vw, vh);
+    const scale = preprocess(vw, vh);
 
-    // downscaled frame for OCR speed
-    const scale = Math.min(1, 720 / Math.max(vw, vh));
-    const pw = Math.round(vw * scale), ph = Math.round(vh * scale);
-    procCanvas.width = pw; procCanvas.height = ph;
-    procCtx.drawImage(video, 0, 0, pw, ph);
-
-    setStatus('scanning for text…');
+    setStatus(`scanning… tracked: ${tracks.filter(t=>t.hits>=2).length}`);
     try {
-      const { data } = await worker.recognize(procCanvas);
-      const words = (data.words || []).filter(w =>
-        w.confidence > 55 &&
-        w.text.trim().replace(/[^A-Za-z0-9]/g, '').length >= 2 &&
-        (w.bbox.x1 - w.bbox.x0) > 6 && (w.bbox.y1 - w.bbox.y0) > 6
-      );
+      // two jobs into the scheduler: the two workers (sparse-text + block mode) run them concurrently
+      const [r1, r2] = await Promise.all([
+        scheduler.addJob('recognize', procCanvas),
+        scheduler.addJob('recognize', procCanvas)
+      ]);
+      const rawWords = [];
+      for (const res of [r1, r2]) {
+        for (const w of (res.data.words || [])) rawWords.push(w);
+      }
 
-      const newBoxes = words.slice(0, 24).map(w => {
-        const x0 = w.bbox.x0 / scale, y0 = w.bbox.y0 / scale;
-        const x1 = w.bbox.x1 / scale, y1 = w.bbox.y1 / scale;
-        const bw = x1 - x0, bh = y1 - y0;
-        const text = avgColor(fullCtx, x0, y0, bw, bh, vw, vh);
-        const pad = bh;
-        const bg = avgColor(fullCtx, x0 - pad, y0 - pad, bw + pad * 2, bh + pad * 2, vw, vh);
-        return { x0, y0, x1, y1, text, bg, label: MSG };
-      });
+      // dedup near-identical boxes from overlapping passes
+      const kept = [];
+      for (const w of rawWords) {
+        if (w.confidence < 45) continue;
+        const clean = w.text.trim().replace(/[^A-Za-z0-9'-]/g, '');
+        if (clean.length < 2) continue;
+        const bw = w.bbox.x1 - w.bbox.x0, bh = w.bbox.y1 - w.bbox.y0;
+        if (bw < 6 || bh < 6) continue;
+        const box = { x0: w.bbox.x0 / scale, y0: w.bbox.y0 / scale, x1: w.bbox.x1 / scale, y1: w.bbox.y1 / scale };
+        let dup = false;
+        for (const k of kept) { if (iou(k, box) > 0.5) { dup = true; break; } }
+        if (dup) continue;
+        kept.push(box);
 
-      boxes = newBoxes;
-      setStatus(newBoxes.length ? `${newBoxes.length} word(s) overwritten` : 'looking…');
+        const text = avgColor(fullCtx, box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0, vw, vh);
+        const pad = (box.y1 - box.y0);
+        const bg = avgColor(fullCtx, box.x0 - pad, box.y0 - pad, (box.x1-box.x0) + pad*2, (box.y1-box.y0) + pad*2, vw, vh);
+        const blurCanvas = makeBlurCrop(box.x0, box.y0, box.x1, box.y1, vw, vh);
+        kept[kept.length - 1] = { ...box, text, bg, angle: wordAngle(w), label: MSG, blurCanvas };
+      }
+      updateTracks(kept, vw, vh);
     } catch (e) {
       setStatus('ocr error, retrying…');
     }
-    if (running) setTimeout(ocrLoop, 60);
+    if (running) setTimeout(ocrLoop, 40);
   }
 
   async function start() {
@@ -260,35 +392,42 @@
     startBtn.textContent = 'starting camera…';
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: false
       });
     } catch (e) {
-      alert('Camera access failed: ' + e.message + '\n\nThis needs camera permission and works best on a phone browser (Chrome/Safari) over HTTPS.');
-      startBtn.disabled = false;
-      startBtn.textContent = 'Begin';
+      alert('Camera access failed: ' + e.message + '\n\nWorks best on a phone browser (Chrome/Safari) over HTTPS.');
+      startBtn.disabled = false; startBtn.textContent = 'Begin';
       return;
     }
     video.srcObject = stream;
     await video.play();
+    await enableOrientation();
 
-    setStatus('loading text recognition engine…');
-    worker = await Tesseract.createWorker('eng');
-    await worker.setParameters({ tessedit_pageseg_mode: '11' }); // sparse text
+    setStatus('loading text recognition engines…');
+    scheduler = Tesseract.createScheduler();
+    const w1 = await Tesseract.createWorker('eng');
+    await w1.setParameters({ tessedit_pageseg_mode: '11' }); // sparse text
+    scheduler.addWorker(w1);
+    const w2 = await Tesseract.createWorker('eng');
+    await w2.setParameters({ tessedit_pageseg_mode: '6' });  // uniform block
+    scheduler.addWorker(w2);
 
     ui.classList.add('hidden');
     statusEl.classList.remove('hidden');
     exitBtn.classList.remove('hidden');
     running = true;
+    tracks = [];
     render();
     ocrLoop();
   }
 
   async function stop() {
     running = false;
-    boxes = [];
+    tracks = [];
+    window.removeEventListener('deviceorientation', handleOrientation);
     if (stream) stream.getTracks().forEach(t => t.stop());
-    if (worker) { await worker.terminate(); worker = null; }
+    if (scheduler) { await scheduler.terminate(); scheduler = null; }
     ui.classList.remove('hidden');
     statusEl.classList.add('hidden');
     exitBtn.classList.add('hidden');
