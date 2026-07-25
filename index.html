@@ -1,672 +1,296 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>HE IS COMING</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Creepster&family=Courier+Prime:wght@700&display=swap" rel="stylesheet">
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0; padding: 0; width: 100%; height: 100%;
-    background: #000; overflow: hidden;
-    font-family: 'Courier Prime', monospace;
-    -webkit-user-select: none; user-select: none;
-  }
-  #stage { position: fixed; inset: 0; }
-  video#cam {
-    position: fixed; inset: 0; width: 100%; height: 100%;
-    object-fit: cover; background: #000;
-  }
-  canvas#overlay {
-    position: fixed; inset: 0; width: 100%; height: 100%;
-    pointer-events: none;
-  }
-  #ui {
-    position: fixed; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; text-align: center;
-    background: radial-gradient(ellipse at center, #1a0000 0%, #000 75%);
-    padding: 24px; z-index: 10;
-  }
-  #ui h1 {
-    font-family: 'Creepster', cursive;
-    color: #c0392b;
-    font-size: 15vw;
-    max-width: 90vw;
-    text-shadow: 0 0 18px #700, 0 0 40px #400;
-    margin: 0 0 8px;
-    letter-spacing: 2px;
-  }
-  #ui p { color: #999; max-width: 480px; line-height: 1.5; font-size: 13px; }
-  #ui button {
-    margin-top: 22px; padding: 14px 30px; font-size: 16px;
-    font-family: 'Courier Prime', monospace; font-weight: 700;
-    background: #8b0000; color: #fff; border: 1px solid #c0392b;
-    border-radius: 6px; cursor: pointer; letter-spacing: 1px;
-    text-transform: uppercase;
-  }
-  #ui button:active { background: #5c0000; }
-  #ui button:disabled { opacity: 0.4; }
-  #status {
-    position: fixed; top: 10px; left: 10px; right: 10px;
-    font-size: 11px; color: #d35400; z-index: 20;
-    text-shadow: 0 0 4px #000; pointer-events: none;
-    font-family: 'Courier Prime', monospace; white-space: pre-line;
-  }
-  #exitBtn {
-    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
-    z-index: 20; background: rgba(0,0,0,0.55); color: #eee;
-    border: 1px solid #444; border-radius: 20px; padding: 8px 18px;
-    font-size: 12px; font-family: 'Courier Prime', monospace;
-  }
-  canvas#xrCanvas { position: fixed; inset: 0; width: 100%; height: 100%; }
-  #xrHud {
-    position: fixed; top: 14px; left: 14px; right: 14px;
-    text-align: center; color: #eee; font-size: 13px;
-    text-shadow: 0 0 6px #000; pointer-events: none;
-  }
-  #xrExit {
-    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-    background: rgba(0,0,0,0.6); color: #eee; border: 1px solid #666;
-    border-radius: 20px; padding: 10px 22px; font-size: 13px;
-    font-family: 'Courier Prime', monospace; pointer-events: auto;
-  }
-  #compatNote {
-    margin-top: 10px; font-size: 11px; color: #666; max-width: 420px;
-  }
-  .hidden { display: none !important; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roblox Batch Asset Downloader</title>
+    <style>
+        :root {
+            --bg-color: #1e1e24;
+            --card-bg: #2b2b36;
+            --text-main: #ffffff;
+            --text-muted: #a0a0a0;
+            --accent: #00b4d8;
+            --accent-hover: #0096c7;
+            --error: #f74b52;
+            --success: #06d6a0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        h2 { margin-top: 0; }
+        
+        p.description {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            background-color: #1e1e24;
+            border: 2px solid #ccc;
+            color: #fff;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 1rem;
+            resize: none;
+            box-sizing: border-box;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover { background-color: var(--accent-hover); }
+
+        .message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            display: none;
+        }
+
+        #errorMsg {
+            background-color: rgba(247, 75, 82, 0.2);
+            color: var(--error);
+        }
+
+        #loadMsg {
+            background-color: rgba(0, 180, 216, 0.2);
+            color: var(--accent);
+        }
+    </style>
 </head>
 <body>
 
-<div id="stage">
-  <video id="cam" autoplay playsinline muted></video>
-  <canvas id="overlay"></canvas>
-</div>
-<canvas id="xrCanvas" class="hidden"></canvas>
+    <div class="container">
+        <h2>Asset Downloader</h2>
+        <p class="description">Paste your Roblox Asset URLs or IDs separated by commas to download them in a batch.</p>
+        
+        <textarea id="assetURL" placeholder="e.g. 6532975426, 1234567890, https://create.roblox.com/store/asset/..."></textarea>
+        
+        <button id="submitAsset">Download Assets</button>
+        
+        <div id="errorMsg" class="message"></div>
+        <div id="loadMsg" class="message"></div>
+    </div>
 
-<div id="status" class="hidden"></div>
-<button id="exitBtn" class="hidden">stop</button>
+    <script>
+        // RobloxAsset — fixed, modernized & updated for create.roblox.com
+        const CORS_PROXY = "https://cors-anywhere.herokuapp.com/"; [cite: 2]
 
-<!-- shown only inside the WebXR passthrough session via dom-overlay -->
-<div id="xrOverlayRoot" class="hidden">
-  <div id="xrHud">pull the trigger (or pinch) to stick "he is coming" on a real surface</div>
-  <button id="xrExit">exit passthrough</button>
-</div>
+        // Roblox AssetTypeId → file extension [cite: 3]
+        const ASSET_TYPE_EXT = {
+            1:  ".png",   2:  ".rbxm",  3:  ".lua",   5:  ".rbxm",  8:  ".rbxm", 
+            9:  ".png",   11: ".png",   12: ".png",   13: ".png",   17: ".rbxm", [cite: 3]
+            18: ".png",   19: ".rbxm",  21: ".png",   24: ".rbxm",  25: ".rbxm", 
+            26: ".rbxm",  27: ".rbxm",  28: ".rbxm",  29: ".rbxm",  30: ".rbxm", 
+            38: ".rbxm",  40: ".rbxm", [cite: 4]
+            41: ".rbxm",  42: ".rbxm",  43: ".rbxm",  44: ".rbxm",  45: ".rbxm", 
+            46: ".rbxm",  47: ".rbxm",  50: ".mp3",   51: ".rbxm",  61: ".ttf", 
+            62: ".ttf",   63: ".mp4" [cite: 5]
+        };
 
-<div id="ui">
-  <h1>HE IS<br>COMING</h1>
-  <p>
-    Scans for text/ad blocks around you with your camera and replaces the whole
-    block with a random sponsor panel — clustering nearby words into one region
-    (not word-by-word), rotated and lightly warped to the surface, tinted to the
-    real ambient light. Seeing just a corner of a block keeps the whole thing
-    covered. Nothing leaves your device.
-  </p>
-  <button id="startBtn">Begin (phone camera)</button>
-  <button id="xrBtn" class="hidden">Enter Passthrough (Quest/VR)</button>
-  <div id="compatNote"></div>
-</div>
+        // Types where we download the thumbnail image rather than the raw asset
+        const IMAGE_TYPES = new Set([1, 9, 11, 12, 13, 18, 21]); [cite: 6]
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-<script>
-(async () => {
-  const startBtn = document.getElementById('startBtn');
-  const xrBtn = document.getElementById('xrBtn');
-  const compatNote = document.getElementById('compatNote');
-  const exitBtn = document.getElementById('exitBtn');
-  const ui = document.getElementById('ui');
-  const statusEl = document.getElementById('status');
-  const video = document.getElementById('cam');
-  const overlay = document.getElementById('overlay');
-  const octx = overlay.getContext('2d');
-  const xrCanvas = document.getElementById('xrCanvas');
-  const xrOverlayRoot = document.getElementById('xrOverlayRoot');
-  const xrExit = document.getElementById('xrExit');
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("submitAsset").addEventListener("click", processOptions); [cite: 7]
+        });
 
-  // ---- capability detection: figure out what this browser/device can actually do ----
-  (async function detectCapabilities() {
-    const notes = [];
-    const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-    let hasImmersiveAR = false;
-    if (navigator.xr && navigator.xr.isSessionSupported) {
-      try { hasImmersiveAR = await navigator.xr.isSessionSupported('immersive-ar'); } catch (e) { hasImmersiveAR = false; }
-    }
-    if (hasImmersiveAR) {
-      xrBtn.classList.remove('hidden');
-      notes.push('Passthrough AR detected — real OCR text-scanning is not available in headset browsers (no camera pixel access), so Passthrough mode lets you manually stick "he is coming" panels onto real surfaces instead, using real hit-test tracking.');
-    }
-    if (!hasGetUserMedia) {
-      startBtn.classList.add('hidden');
-    }
-    if (!hasGetUserMedia && !hasImmersiveAR) {
-      notes.push('This browser supports neither a scriptable camera nor WebXR passthrough — try a modern phone browser (Chrome/Safari) or a Quest browser instead.');
-    }
-    compatNote.textContent = notes.join(' ');
-  })();
-
-  const MSG = "he is coming";
-
-  let scheduler = null;
-  let running = false;
-  let stream = null;
-  let tracks = [];        // confirmed + candidate tracks, in VIDEO pixel space
-  let nextId = 1;
-
-  // orientation-based "glue" between OCR updates
-  let lastOrient = null;
-  let orientDelta = { dx: 0, dy: 0 };
-
-  const procCanvas = document.createElement('canvas');
-  const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
-  const tinyCanvas = document.createElement('canvas');
-  const tinyCtx = tinyCanvas.getContext('2d', { willReadFrequently: true });
-
-  function setStatus(t) { statusEl.textContent = t; }
-
-  function resizeOverlay() {
-    overlay.width = window.innerWidth * devicePixelRatio;
-    overlay.height = window.innerHeight * devicePixelRatio;
-    overlay.style.width = window.innerWidth + 'px';
-    overlay.style.height = window.innerHeight + 'px';
-  }
-  window.addEventListener('resize', resizeOverlay);
-  resizeOverlay();
-
-  function videoToScreen(x, y) {
-    const vw = video.videoWidth, vh = video.videoHeight;
-    const cw = overlay.width, ch = overlay.height;
-    const scale = Math.max(cw / vw, ch / vh);
-    const dw = vw * scale, dh = vh * scale;
-    const ox = (cw - dw) / 2, oy = (ch - dh) / 2;
-    return { x: ox + x * scale + orientDelta.dx, y: oy + y * scale + orientDelta.dy, scale };
-  }
-
-  function luminance(r, g, b) { return 0.2126 * r + 0.7152 * g + 0.0722 * b; }
-
-  function avgColor(ctx, x, y, w, h, cw, ch) {
-    x = Math.max(0, Math.floor(x)); y = Math.max(0, Math.floor(y));
-    w = Math.max(1, Math.floor(w)); h = Math.max(1, Math.floor(h));
-    if (x + w > cw) w = cw - x;
-    if (y + h > ch) h = ch - y;
-    if (w <= 0 || h <= 0) return { r: 128, g: 128, b: 128 };
-    let data;
-    try { data = ctx.getImageData(x, y, w, h).data; } catch (e) { return { r: 128, g: 128, b: 128 }; }
-    let r = 0, g = 0, b = 0, n = 0;
-    for (let i = 0; i < data.length; i += 16) { r += data[i]; g += data[i+1]; b += data[i+2]; n++; }
-    if (!n) return { r: 128, g: 128, b: 128 };
-    return { r: r / n, g: g / n, b: b / n };
-  }
-
-  function iou(a, b) {
-    const x0 = Math.max(a.x0, b.x0), y0 = Math.max(a.y0, b.y0);
-    const x1 = Math.min(a.x1, b.x1), y1 = Math.min(a.y1, b.y1);
-    const iw = Math.max(0, x1 - x0), ih = Math.max(0, y1 - y0);
-    const inter = iw * ih;
-    const areaA = (a.x1 - a.x0) * (a.y1 - a.y0);
-    const areaB = (b.x1 - b.x0) * (b.y1 - b.y0);
-    const union = areaA + areaB - inter;
-    return union > 0 ? inter / union : 0;
-  }
-
-  function roundRectPath(ctx, x, y, w, h, r) {
-    r = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  // ---- device orientation glue: shift boxes slightly between OCR updates ----
-  function handleOrientation(e) {
-    if (e.alpha == null) return;
-    const cur = { a: e.alpha, b: e.beta, g: e.gamma };
-    if (lastOrient) {
-      let da = cur.a - lastOrient.a;
-      if (da > 180) da -= 360; if (da < -180) da += 360;
-      const db = cur.b - lastOrient.b;
-      const SENS = 6.5; // px per degree, tuned rough estimate
-      orientDelta.dx -= da * SENS;
-      orientDelta.dy += db * SENS;
-      // clamp so drift can't run away if data is noisy
-      orientDelta.dx = Math.max(-250, Math.min(250, orientDelta.dx));
-      orientDelta.dy = Math.max(-250, Math.min(250, orientDelta.dy));
-    }
-    lastOrient = cur;
-  }
-
-  async function enableOrientation() {
-    try {
-      if (typeof DeviceOrientationEvent !== 'undefined' &&
-          typeof DeviceOrientationEvent.requestPermission === 'function') {
-        const res = await DeviceOrientationEvent.requestPermission();
-        if (res === 'granted') window.addEventListener('deviceorientation', handleOrientation);
-      } else {
-        window.addEventListener('deviceorientation', handleOrientation);
-      }
-    } catch (e) { /* no orientation available, fine */ }
-  }
-
-  // ---- stylized placeholder ad graphics (drawn from scratch, not real NordVPN artwork) ----
-  const AD_COPY = [
-    { title: 'NordVPN', sub: 'PROTECT YOUR CONNECTION', cta: '73% OFF TODAY' },
-    { title: 'NordVPN', sub: 'BROWSE PRIVATELY', cta: 'NO-LOGS GUARANTEE' },
-    { title: 'NordVPN', sub: 'STAY ANONYMOUS ONLINE', cta: 'GET 3 MONTHS FREE' }
-  ];
-  let adVariants = [];
-  function buildAdVariants() {
-    adVariants = AD_COPY.map(info => {
-      const c = document.createElement('canvas');
-      c.width = 640; c.height = 300;
-      const cx = c.getContext('2d');
-      const grad = cx.createLinearGradient(0, 0, 640, 300);
-      grad.addColorStop(0, '#0b3d2e'); grad.addColorStop(1, '#123a5c');
-      cx.fillStyle = grad;
-      roundRectPath(cx, 4, 4, 632, 292, 26); cx.fill();
-      // generic shield icon (hand-drawn, not a copy of any real logo)
-      cx.save();
-      cx.translate(96, 150);
-      cx.beginPath();
-      cx.moveTo(0, -66); cx.quadraticCurveTo(58, -52, 58, -8);
-      cx.quadraticCurveTo(58, 48, 0, 76);
-      cx.quadraticCurveTo(-58, 48, -58, -8);
-      cx.quadraticCurveTo(-58, -52, 0, -66);
-      cx.closePath();
-      cx.fillStyle = '#4bd0a0'; cx.fill();
-      cx.strokeStyle = '#e8fff5'; cx.lineWidth = 5; cx.stroke();
-      cx.strokeStyle = '#0b3d2e'; cx.lineWidth = 9; cx.lineCap = 'round';
-      cx.beginPath(); cx.moveTo(-22, 0); cx.lineTo(-6, 20); cx.lineTo(26, -24); cx.stroke();
-      cx.restore();
-      cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; cx.fillStyle = '#ffffff';
-      cx.font = "800 50px 'Courier Prime', monospace";
-      cx.fillText(info.title, 190, 140);
-      cx.font = "700 21px 'Courier Prime', monospace"; cx.fillStyle = '#bfe9d9';
-      cx.fillText(info.sub, 190, 178);
-      cx.font = "700 25px 'Courier Prime', monospace"; cx.fillStyle = '#4bd0a0';
-      cx.fillText(info.cta, 190, 218);
-      cx.font = "600 13px 'Courier Prime', monospace"; cx.fillStyle = 'rgba(255,255,255,0.5)';
-      cx.fillText('sponsored', 190, 250);
-      return c;
-    });
-  }
-
-  function rectsOverlap(a, b) { return a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0; }
-  function overlapArea(a, b) {
-    const x0 = Math.max(a.x0, b.x0), y0 = Math.max(a.y0, b.y0);
-    const x1 = Math.min(a.x1, b.x1), y1 = Math.min(a.y1, b.y1);
-    return Math.max(0, x1 - x0) * Math.max(0, y1 - y0);
-  }
-
-  // merge nearby word boxes into single "ad block" regions, so a whole sign
-  // gets covered by one panel instead of many small tiles over each word
-  function clusterBoxes(boxes) {
-    const n = boxes.length;
-    const parent = Array.from({ length: n }, (_, i) => i);
-    const find = i => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
-    const union = (i, j) => { const a = find(i), b = find(j); if (a !== b) parent[a] = b; };
-    const padded = boxes.map(b => {
-      const h = b.y1 - b.y0;
-      const padX = h * 1.1, padY = h * 0.6;
-      return { x0: b.x0 - padX, y0: b.y0 - padY, x1: b.x1 + padX, y1: b.y1 + padY };
-    });
-    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
-      if (rectsOverlap(padded[i], padded[j])) union(i, j);
-    }
-    const groups = {};
-    for (let i = 0; i < n; i++) { const r = find(i); (groups[r] = groups[r] || []).push(boxes[i]); }
-    return Object.values(groups).map(g => ({
-      x0: Math.min(...g.map(b => b.x0)), y0: Math.min(...g.map(b => b.y0)),
-      x1: Math.max(...g.map(b => b.x1)), y1: Math.max(...g.map(b => b.y1)),
-      angle: g.reduce((s, b) => s + b.angle, 0) / g.length
-    }));
-  }
-
-  // ---- render ----
-  function render() {
-    octx.clearRect(0, 0, overlay.width, overlay.height);
-    for (const t of tracks) {
-      if (t.hits < 2) continue; // require confirmation before drawing
-      drawTrack(t);
-    }
-    requestAnimationFrame(render);
-  }
-
-  function drawTrack(t) {
-    const p1 = videoToScreen(t.x0, t.y0);
-    const p2 = videoToScreen(t.x1, t.y1);
-    const x = Math.min(p1.x, p2.x), y = Math.min(p1.y, p2.y);
-    const w = Math.abs(p2.x - p1.x), h = Math.abs(p2.y - p1.y);
-    if (w < 6 || h < 6) return;
-    const pad = h * 0.22;
-    const bw = w + pad * 2, bh = h + pad * 2;
-    const ad = adVariants[t.variant % adVariants.length];
-
-    // gentle live "warp": breathing scale + a shear tied to the surface angle,
-    // so it doesn't sit as a rigid flat rectangle
-    const breathe = 1 + Math.sin(performance.now() / 550 + t.id) * 0.025;
-    const skew = Math.max(-0.22, Math.min(0.22, Math.sin(t.angle || 0) * 0.35));
-
-    octx.save();
-    octx.translate(x + w / 2, y + h / 2);
-    octx.rotate(t.angle || 0);
-    octx.transform(1, 0, skew, 1, 0, 0);
-    octx.scale(breathe, breathe);
-    const bx = -bw / 2, by = -bh / 2;
-
-    octx.save();
-    roundRectPath(octx, bx, by, bw, bh, bh * 0.14);
-    octx.clip();
-    octx.shadowColor = 'rgba(0,0,0,0.5)';
-    octx.shadowBlur = 16;
-    // tint toward the real ambient light/color sampled behind the block, so it
-    // isn't a flat pasted graphic under coloured or dim lighting
-    const amb = t.ambient || { r: 200, g: 200, b: 200 };
-    const lum = luminance(amb.r, amb.g, amb.b) / 255;
-    octx.filter = `brightness(${(0.65 + lum * 0.65).toFixed(2)}) saturate(1.05)`;
-    octx.drawImage(ad, bx, by, bw, bh);
-    octx.filter = 'none';
-    octx.restore();
-
-    octx.strokeStyle = 'rgba(0,0,0,0.35)';
-    octx.lineWidth = 2;
-    roundRectPath(octx, bx + 1, by + 1, bw - 2, bh - 2, bh * 0.13);
-    octx.stroke();
-    octx.restore();
-  }
-
-  // ---- OCR pipeline ----
-  function preprocess(vw, vh) {
-    const scale = Math.min(1, 760 / Math.max(vw, vh));
-    const pw = Math.round(vw * scale), ph = Math.round(vh * scale);
-    procCanvas.width = pw; procCanvas.height = ph;
-    procCtx.filter = 'grayscale(1) contrast(1.5) brightness(1.1)';
-    procCtx.drawImage(video, 0, 0, pw, ph);
-    procCtx.filter = 'none';
-    return scale;
-  }
-
-  function wordAngle(w) {
-    if (w.baseline && (w.baseline.x1 - w.baseline.x0) !== 0) {
-      return Math.atan2(w.baseline.y1 - w.baseline.y0, w.baseline.x1 - w.baseline.x0);
-    }
-    return 0;
-  }
-
-  function updateTracks(detections) {
-    const used = new Set();
-    const originalCount = tracks.length;
-    for (const d of detections) {
-      let best = -1, bestScore = 0;
-      tracks.forEach((t, i) => {
-        if (used.has(i)) return;
-        if (!rectsOverlap(t, d)) return; // even a corner overlap counts as a match
-        const score = overlapArea(t, d);
-        if (score > bestScore) { bestScore = score; best = i; }
-      });
-      if (best >= 0) {
-        const t = tracks[best];
-        // grow-only union: a block's remembered extent never shrinks while tracked,
-        // so seeing only a corner still keeps the whole block covered
-        t.x0 = Math.min(t.x0, d.x0); t.y0 = Math.min(t.y0, d.y0);
-        t.x1 = Math.max(t.x1, d.x1); t.y1 = Math.max(t.y1, d.y1);
-        t.angle = t.angle * 0.7 + d.angle * 0.3;
-        t.ambient = d.ambient;
-        t.hits = Math.min(t.hits + 1, 6); t.misses = 0;
-        used.add(best);
-      } else {
-        tracks.push({ id: nextId++, ...d, hits: 1, misses: 0, variant: Math.floor(Math.random() * adVariants.length) });
-      }
-    }
-    for (let i = 0; i < originalCount; i++) { if (!used.has(i)) tracks[i].misses++; }
-    tracks = tracks.filter(t => t.misses < 5);
-    orientDelta.dx *= 0.15; orientDelta.dy *= 0.15;
-  }
-
-  async function ocrLoop() {
-    if (!running) return;
-    const vw = video.videoWidth, vh = video.videoHeight;
-    if (!vw || !vh) { setTimeout(ocrLoop, 200); return; }
-
-    // cheap small color frame just for ambient-light sampling (fast: no big getImageData reads)
-    const tinyScale = 160 / vw;
-    tinyCanvas.width = 160; tinyCanvas.height = Math.max(1, Math.round(vh * tinyScale));
-    tinyCtx.drawImage(video, 0, 0, tinyCanvas.width, tinyCanvas.height);
-
-    const scale = preprocess(vw, vh);
-
-    setStatus(`scanning… ad blocks: ${tracks.filter(t => t.hits >= 2).length}`);
-    try {
-      // two workers (sparse-text + block mode) run concurrently for speed + coverage
-      const [r1, r2] = await Promise.all([
-        scheduler.addJob('recognize', procCanvas),
-        scheduler.addJob('recognize', procCanvas)
-      ]);
-      const rawWords = [];
-      for (const res of [r1, r2]) for (const w of (res.data.words || [])) rawWords.push(w);
-
-      const kept = [];
-      for (const w of rawWords) {
-        if (w.confidence < 38) continue;
-        const clean = w.text.trim().replace(/[^A-Za-z0-9'-]/g, '');
-        if (clean.length < 2) continue;
-        const bw = w.bbox.x1 - w.bbox.x0, bh = w.bbox.y1 - w.bbox.y0;
-        if (bw < 5 || bh < 5) continue;
-        const box = { x0: w.bbox.x0 / scale, y0: w.bbox.y0 / scale, x1: w.bbox.x1 / scale, y1: w.bbox.y1 / scale };
-        let dup = false;
-        for (const k of kept) { if (rectsOverlap(k, box) && overlapArea(k, box) > 0.5 * Math.min((k.x1-k.x0)*(k.y1-k.y0), (box.x1-box.x0)*(box.y1-box.y0))) { dup = true; break; } }
-        if (dup) continue;
-        kept.push({ ...box, angle: wordAngle(w) });
-      }
-
-      const clusters = clusterBoxes(kept);
-      for (const c of clusters) {
-        c.ambient = avgColor(tinyCtx, c.x0 * tinyScale, c.y0 * tinyScale, (c.x1 - c.x0) * tinyScale, (c.y1 - c.y0) * tinyScale, tinyCanvas.width, tinyCanvas.height);
-      }
-      updateTracks(clusters);
-    } catch (e) {
-      setStatus('ocr error, retrying…');
-    }
-    if (running) setTimeout(ocrLoop, 12);
-  }
-
-  async function start() {
-    startBtn.disabled = true;
-    startBtn.textContent = 'starting camera…';
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false
-      });
-    } catch (e) {
-      alert('Camera access failed: ' + e.message + '\n\nWorks best on a phone browser (Chrome/Safari) over HTTPS.');
-      startBtn.disabled = false; startBtn.textContent = 'Begin';
-      return;
-    }
-    video.srcObject = stream;
-    await video.play();
-    await enableOrientation();
-
-    setStatus('loading text recognition engines…');
-    buildAdVariants();
-    scheduler = Tesseract.createScheduler();
-    const w1 = await Tesseract.createWorker('eng');
-    await w1.setParameters({ tessedit_pageseg_mode: '11', tessedit_ocr_engine_mode: '1' }); // sparse text, LSTM-only (faster)
-    scheduler.addWorker(w1);
-    const w2 = await Tesseract.createWorker('eng');
-    await w2.setParameters({ tessedit_pageseg_mode: '6', tessedit_ocr_engine_mode: '1' });  // uniform block, LSTM-only
-    scheduler.addWorker(w2);
-
-    ui.classList.add('hidden');
-    statusEl.classList.remove('hidden');
-    exitBtn.classList.remove('hidden');
-    running = true;
-    tracks = [];
-    render();
-    ocrLoop();
-  }
-
-  async function stop() {
-    running = false;
-    tracks = [];
-    window.removeEventListener('deviceorientation', handleOrientation);
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    if (scheduler) { await scheduler.terminate(); scheduler = null; }
-    ui.classList.remove('hidden');
-    statusEl.classList.add('hidden');
-    exitBtn.classList.add('hidden');
-    startBtn.disabled = false;
-    startBtn.textContent = 'Begin';
-  }
-
-  // ================= QUEST / VR PASSTHROUGH PATH =================
-  // Real OCR can't run here (no camera pixel access in headset browsers), so this
-  // mode uses genuine WebXR hit-test against Quest's real scene understanding —
-  // panels are placed with the actual position AND orientation of the real surface.
-  let xrRenderer, xrScene, xrCamera, xrSession, xrReticle;
-  let xrHitTestSource = null, xrHitTestSourceRequested = false;
-  let panelTexCanvas, panelTexture;
-
-  function buildPanelTexture() {
-    panelTexCanvas = document.createElement('canvas');
-    panelTexCanvas.width = 512; panelTexCanvas.height = 256;
-    const c = panelTexCanvas.getContext('2d');
-    const grad = c.createLinearGradient(0, 0, 512, 256);
-    grad.addColorStop(0, 'rgba(60,10,10,0.92)');
-    grad.addColorStop(1, 'rgba(20,4,4,0.92)');
-    c.fillStyle = grad;
-    roundRectCtx(c, 8, 8, 496, 240, 28);
-    c.fill();
-    c.strokeStyle = 'rgba(255,255,255,0.15)';
-    c.lineWidth = 3;
-    roundRectCtx(c, 8, 8, 496, 240, 28);
-    c.stroke();
-    c.fillStyle = '#f2e5e5';
-    c.font = "700 64px 'Courier Prime', monospace";
-    c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.shadowColor = 'rgba(0,0,0,0.6)'; c.shadowBlur = 6;
-    c.fillText(MSG, 256, 128);
-    panelTexture = new THREE.CanvasTexture(panelTexCanvas);
-  }
-  function roundRectCtx(c, x, y, w, h, r) {
-    c.beginPath();
-    c.moveTo(x + r, y);
-    c.arcTo(x + w, y, x + w, y + h, r);
-    c.arcTo(x + w, y + h, x, y + h, r);
-    c.arcTo(x, y + h, x, y, r);
-    c.arcTo(x, y, x + w, y, r);
-    c.closePath();
-  }
-
-  function placePanelAtReticle() {
-    if (!xrReticle.visible) return;
-    const geo = new THREE.PlaneGeometry(0.32, 0.16);
-    const mat = new THREE.MeshBasicMaterial({ map: panelTexture, transparent: true, side: THREE.DoubleSide });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.matrixAutoUpdate = false;
-    mesh.matrix.copy(xrReticle.matrix);
-    // small offset off the surface so it doesn't z-fight
-    const normalOffset = new THREE.Matrix4().makeTranslation(0, 0.001, 0);
-    mesh.matrix.multiply(normalOffset);
-    xrScene.add(mesh);
-  }
-
-  async function startXR() {
-    if (!navigator.xr) { alert('WebXR not available in this browser.'); return; }
-    xrBtn.disabled = true;
-    xrBtn.textContent = 'entering passthrough…';
-
-    buildPanelTexture();
-
-    xrScene = new THREE.Scene();
-    xrCamera = new THREE.PerspectiveCamera();
-    xrRenderer = new THREE.WebGLRenderer({ canvas: xrCanvas, alpha: true, antialias: true });
-    xrRenderer.setPixelRatio(window.devicePixelRatio);
-    xrRenderer.setSize(window.innerWidth, window.innerHeight);
-    xrRenderer.xr.enabled = true;
-
-    xrReticle = new THREE.Mesh(
-      new THREE.RingGeometry(0.05, 0.07, 32).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0xc0392b })
-    );
-    xrReticle.matrixAutoUpdate = false;
-    xrReticle.visible = false;
-    xrScene.add(xrReticle);
-    xrScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
-
-    let session;
-    try {
-      session = await navigator.xr.requestSession('immersive-ar', {
-        requiredFeatures: ['hit-test', 'local-floor'],
-        optionalFeatures: ['dom-overlay'],
-        domOverlay: { root: xrOverlayRoot }
-      });
-    } catch (e) {
-      alert('Could not start passthrough AR session: ' + e.message);
-      xrBtn.disabled = false; xrBtn.textContent = 'Enter Passthrough (Quest/VR)';
-      return;
-    }
-
-    xrSession = session;
-    await xrRenderer.xr.setSession(session);
-    xrCanvas.classList.remove('hidden');
-    xrOverlayRoot.classList.remove('hidden');
-    ui.classList.add('hidden');
-
-    const controller = xrRenderer.xr.getController(0);
-    controller.addEventListener('select', placePanelAtReticle);
-    xrScene.add(controller);
-
-    session.addEventListener('end', onXREnd);
-    xrExit.addEventListener('click', () => session.end());
-
-    xrRenderer.setAnimationLoop((timestamp, frame) => {
-      if (frame) {
-        const refSpace = xrRenderer.xr.getReferenceSpace();
-        if (!xrHitTestSourceRequested) {
-          session.requestReferenceSpace('viewer').then((viewerSpace) => {
-            session.requestHitTestSource({ space: viewerSpace }).then((source) => {
-              xrHitTestSource = source;
-            });
-          });
-          xrHitTestSourceRequested = true;
+        // ─── ID extraction ────────────────────────────────────────────────────────────
+        function extractAssetId(url) {
+            const match = url.match(/\/(\d{6,})/); [cite: 8]
+            return match ? match[1] : null; [cite: 9]
         }
-        if (xrHitTestSource) {
-          const results = frame.getHitTestResults(xrHitTestSource);
-          if (results.length) {
-            const pose = results[0].getPose(refSpace);
-            xrReticle.visible = true;
-            xrReticle.matrix.fromArray(pose.transform.matrix);
-          } else {
-            xrReticle.visible = false;
-          }
+
+        // ─── Roblox JSON API calls ─────────────────────────────
+        async function fetchJSON(url) {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`); [cite: 10]
+            return res.json(); [cite: 11]
         }
-      }
-      xrRenderer.render(xrScene, xrCamera);
-    });
-  }
 
-  function onXREnd() {
-    xrHitTestSource = null;
-    xrHitTestSourceRequested = false;
-    if (xrRenderer) { xrRenderer.setAnimationLoop(null); }
-    xrCanvas.classList.add('hidden');
-    xrOverlayRoot.classList.add('hidden');
-    ui.classList.remove('hidden');
-    xrBtn.disabled = false;
-    xrBtn.textContent = 'Enter Passthrough (Quest/VR)';
-  }
-  // ================= END QUEST / VR PASSTHROUGH PATH =================
+        async function getAssetDetails(assetId) {
+            const data = await fetchJSON(`https://economy.roblox.com/v2/assets/${assetId}/details`);
+            return { name: data.Name, assetTypeId: data.AssetTypeId }; [cite: 12]
+        }
 
-  startBtn.addEventListener('click', start);
-  exitBtn.addEventListener('click', stop);
-  xrBtn.addEventListener('click', startXR);
-})();
-</script>
+        async function getAssetThumbnailUrl(assetId) {
+            const data = await fetchJSON(`https://thumbnails.roblox.com/v1/assets?assetIds=${assetId}&size=420x420&format=Png&isCircular=false`);
+            const entry = data?.data?.[0]; [cite: 13]
+            if (!entry || entry.state !== "Completed") {
+                throw new Error("Thumbnail not yet available — try again in a moment");
+            } [cite: 14]
+            return entry.imageUrl;
+        }
+
+        // ─── Binary download (CORS proxy required) ───────────────────────────────────
+        async function fetchBlob(url) {
+            const res = await fetch(CORS_PROXY + url);
+            if (!res.ok) throw new Error(`HTTP ${res.status} downloading asset`); [cite: 15]
+            return res.blob(); [cite: 16]
+        }
+
+        // ─── Main entry point (Modified for Batch Processing) ────────────────────────
+        async function processOptions() {
+            const inputVal = document.getElementById("assetURL").value.trim();
+
+            hideError();
+            resetBorders();
+
+            if (!inputVal) {
+                markInvalid("assetURL");
+                return showError("Please enter at least one Asset ID or URL");
+            }
+
+            // Parse the comma-separated list
+            const rawInputs = inputVal.split(',').map(s => s.trim()).filter(Boolean);
+            const assetIds = [];
+
+            for (const raw of rawInputs) {
+                if (/^\d+$/.test(raw)) {
+                    assetIds.push(raw); // Direct ID
+                } else {
+                    const extracted = extractAssetId(raw);
+                    if (extracted) assetIds.push(extracted); // Extracted from URL
+                }
+            }
+
+            if (assetIds.length === 0) {
+                markInvalid("assetURL");
+                return showError("Could not find valid asset IDs in your input.");
+            }
+
+            // Process each extracted ID sequentially
+            for (let i = 0; i < assetIds.length; i++) {
+                const assetId = assetIds[i];
+                showLoadMsg(`Processing Asset ${i + 1} of ${assetIds.length} (ID: ${assetId})...`);
+
+                try {
+                    // Step 1: look up name + type via JSON API (no proxy needed) [cite: 22]
+                    const { name, assetTypeId } = await getAssetDetails(assetId);
+                    const ext = ASSET_TYPE_EXT[assetTypeId] ?? ".bin"; [cite: 23]
+                    const filename = sanitizeFilename(name) + ext;
+
+                    changeLoadMsg(`Downloading ${filename}...`);
+
+                    // Step 2: choose source URL based on asset type [cite: 24]
+                    let downloadUrl;
+                    if (IMAGE_TYPES.has(assetTypeId)) {
+                        // For image-type assets, use the CDN thumbnail 
+                        downloadUrl = await getAssetThumbnailUrl(assetId);
+                    } else {
+                        // For everything else [cite: 26]
+                        downloadUrl = `https://assetdelivery.roblox.com/v1/asset/?id=${assetId}`;
+                    }
+
+                    // Step 3: fetch the blob and trigger browser download [cite: 27]
+                    await triggerDownload(downloadUrl, filename);
+                    
+                    // Add a tiny 1-second delay so the browser doesn't block multi-downloads
+                    await new Promise(r => setTimeout(r, 1000));
+                } catch (err) {
+                    console.error(err);
+                    showError(`Error on ID ${assetId}: ` + err.message);
+                    await new Promise(r => setTimeout(r, 2000)); // Pause to show error, then continue
+                    hideError();
+                }
+            }
+
+            hideLoadMsg();
+            showLoadMsg("All downloads finished!");
+            setTimeout(hideLoadMsg, 3000);
+        }
+
+        // ─── Download trigger ─────────────────────────────────────────────────────────
+        async function triggerDownload(src, filename) {
+            const blob   = await fetchBlob(src);
+            const anchor = document.createElement("a"); [cite: 30]
+            anchor.href  = URL.createObjectURL(blob);
+            anchor.setAttribute("download", filename);
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            URL.revokeObjectURL(anchor.href); [cite: 31]
+        }
+
+        // ─── Utilities & UI helpers ───────────────────────────────────────────────────
+        function sanitizeFilename(name) {
+            return (name ?? "unnamed").replace(/[/\\:*?"<>|]/g, "_").trim() || "unnamed";
+        }
+
+        function showError(message) {
+            const el = document.getElementById("errorMsg");
+            el.innerText = message;
+            el.style.display = "block";
+        }
+
+        function hideError() {
+            document.getElementById("errorMsg").style.display = "none";
+        }
+
+        function showLoadMsg(message) {
+            const el = document.getElementById("loadMsg");
+            el.innerText = message;
+            el.style.display = "block";
+            document.getElementById("submitAsset").style.display = "none";
+        }
+
+        function hideLoadMsg() {
+            document.getElementById("loadMsg").style.display = "none";
+            document.getElementById("submitAsset").style.display = "block";
+        }
+
+        function changeLoadMsg(message) {
+            document.getElementById("loadMsg").innerText = message;
+        }
+
+        function markInvalid(id) {
+            document.getElementById(id).style.borderColor = "#f74b52"; [cite: 32]
+        }
+
+        function resetBorders() {
+            document.getElementById("assetURL").style.borderColor = "#ccc";
+        }
+    </script>
 </body>
 </html>
