@@ -2,38 +2,1360 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Batch Asset Downloader</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WebXR Verity - Advanced Interaction</title>
     <style>
-        :root {
-            --bg-color: #1e1e24;
-            --card-bg: #2b2b36;
-            --text-main: #ffffff;
-            --text-muted: #a0a0a0;
-            --accent: #00b4d8;
-            --accent-hover: #0096c7;
-            --error: #f74b52;
-            --success: #06d6a0;
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+        /* No UI as requested, the experience is fully immersive */
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <audio id="verityVoice" src="https://actions.google.com/sounds/v1/speech/synthesized_speech_hello.ogg" preload="auto"></audio>
+    <script type="module">
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
+        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+        import { XREstimatedLight } from 'three/addons/webxr/XREstimatedLight.js';
+
+        // --- GLOBAL VARIABLES ---
+        let camera, scene, renderer;
+        let packageGroup, packageBase, packageLid;
+        let verityContainer, verityNormal, verityTrueForm;
+        let faceTextureClosed, faceTextureOpen;
+        let raycaster;
+        
+        // Controllers & Hands
+        let controllers = [];
+        let grips = [];
+        let hands = [];
+        
+        // Physics & Interaction State
+        let isBoxPlaced = false;
+        let hitTestSource = null;
+        let hitTestSourceRequested = false;
+        
+        let boxState = 'IDLE'; // IDLE, OPENING, OPEN
+        let verityState = 'HIDDEN'; // HIDDEN, JUMPING, IDLE, GRABBED, THROWN
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WebXR Verity - Immersive Update</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <script type="module">
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
+
+        // --- CUSTOM TEXTURE LINKS (Add your links here between the quotes) ---
+        const TEX_IDLE_URL = ""; 
+        const TEX_TALK_URL = ""; 
+
+        // --- GLOBAL VARIABLES ---
+        let camera, scene, renderer;
+        let packageGroup, packageMeshes = [];
+        let verityContainer, verityNormal;
+        let faceTextureClosed, faceTextureOpen;
+        let raycaster;
+        
+        let controllers = [], hands = [];
+        let hitTestSource = null, hitTestSourceRequested = false;
+        
+        // Dynamic Environment Plane Mapping (Spatial Grid)
+        const heightMap = new Map();
+        let currentFloorY = 0; // Fallback
+        
+        // Physics & State
+        let isBoxPlaced = false;
+        let spawnTimer = 0;
+        let sessionActive = false;
+        let verityHasJumped = false;
+        
+        let boxState = 'HIDDEN'; // HIDDEN, THROWN
+        let verityState = 'HIDDEN'; // HIDDEN, JUMPING, IDLE, GRABBED, THROWN
+        
+        const GRAVITY = -9.81;
+        let throwVelocity = new THREE.Vector3();
+        let boxVelocity = new THREE.Vector3();
+        let jumpVelocity = new THREE.Vector3();
+
+        // Advanced Grab Tracking & Finger Guns
+        const grabbers = {
+            hand0: { active: false, object: null, currentPos: new THREE.Vector3(), prevPos: new THREE.Vector3(), velocity: new THREE.Vector3(), lastShot: 0 },
+            hand1: { active: false, object: null, currentPos: new THREE.Vector3(), prevPos: new THREE.Vector3(), velocity: new THREE.Vector3(), lastShot: 0 },
+            controller0: { active: false, object: null, currentPos: new THREE.Vector3(), prevPos: new THREE.Vector3(), velocity: new THREE.Vector3(), lastShot: 0 },
+            controller1: { active: false, object: null, currentPos: new THREE.Vector3(), prevPos: new THREE.Vector3(), velocity: new THREE.Vector3(), lastShot: 0 }
+        };
+
+        const energyBlasts = []; // Stores our finger gun projectiles
+        let verityGrabbedBy = null;
+
+        // Speech & Gemini AI
+        let isSpeaking = false;
+        let lipSyncTimer = 0;
+        let recognition = null;
+        let isListening = false;
+        
+        // Force unlock Audio engine on first tap
+        document.addEventListener('pointerdown', () => {
+            if (!window.audioUnlocked && 'speechSynthesis' in window) {
+                window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+                window.audioUnlocked = true;
+            }
+        }, { once: true });
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+            raycaster = new THREE.Raycaster();
+
+            const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambient);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            dirLight.position.set(2, 5, 3);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            const arButton = ARButton.createButton(renderer, {
+                requiredFeatures: ['local-floor', 'hit-test'],
+                optionalFeatures: ['hand-tracking']
+            });
+            document.body.appendChild(arButton);
+
+            renderer.xr.addEventListener('sessionstart', onSessionStart);
+            renderer.xr.addEventListener('sessionend', onSessionEnd);
+
+            setupXRInputs();
+            setupSpeechRecognition();
+            buildPackage();
+            buildVerity();
+            
+            window.addEventListener('resize', onWindowResize);
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
+        function onSessionStart() {
+            sessionActive = true;
+            
+            // Load Custom Textures if provided in the code
+            const loader = new THREE.TextureLoader();
+            loader.setCrossOrigin('anonymous');
+            
+            if (TEX_IDLE_URL) {
+                loader.load(TEX_IDLE_URL, tex => {
+                    tex.colorSpace = THREE.SRGBColorSpace;
+                    faceTextureClosed = tex;
+                    if(!isSpeaking) verityNormal.material.map = faceTextureClosed;
+                });
+            }
+            if (TEX_TALK_URL) {
+                loader.load(TEX_TALK_URL, tex => {
+                    tex.colorSpace = THREE.SRGBColorSpace;
+                    faceTextureOpen = tex;
+                });
+            }
         }
 
-        .container {
-            background-color: var(--card-bg);
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-            width: 100%;
-            max-width: 500px;
+        function onSessionEnd() {
+            sessionActive = false;
+        }
+
+        function generateCardboardTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#9e7a53'; ctx.fillRect(0,0,256,256);
+            for(let i=0; i<4000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
+                ctx.fillRect(Math.random()*256, Math.random()*256, 2, 2);
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function generateVerityFace(mouthOpen = false) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#FFD700'; ctx.fillRect(0, 0, 512, 512); 
+
+            ctx.fillStyle = '#000000';
+            ctx.beginPath(); ctx.arc(160, 220, 50, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(352, 220, 50, 0, Math.PI * 2); ctx.fill();
+
+            ctx.fillStyle = mouthOpen ? '#000000' : '#FFFFFF';
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 8;
+            
+            ctx.beginPath();
+            if (mouthOpen) {
+                ctx.fillRect(100, 340, 312, 120);
+                ctx.strokeRect(100, 340, 312, 120);
+            } else {
+                ctx.moveTo(100, 340); ctx.lineTo(412, 340); ctx.stroke();
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.center.set(0.5, 0.5); tex.rotation = Math.PI;
+            tex.colorSpace = THREE.SRGBColorSpace;
+            return tex;
+        }
+
+        function buildPackage() {
+            packageGroup = new THREE.Group();
+            packageGroup.visible = false;
+            
+            const mat = new THREE.MeshStandardMaterial({ map: generateCardboardTexture(), roughness: 0.9, side: THREE.DoubleSide });
+            
+            // Build Hollow Box (5 pieces)
+            const thickness = 0.02;
+            const size = 0.4;
+            const height = 0.3;
+
+            const bottom = new THREE.Mesh(new THREE.BoxGeometry(size, thickness, size), mat);
+            bottom.position.y = thickness / 2;
+            
+            const left = new THREE.Mesh(new THREE.BoxGeometry(thickness, height, size), mat);
+            left.position.set(-size/2 + thickness/2, height/2, 0);
+            
+            const right = new THREE.Mesh(new THREE.BoxGeometry(thickness, height, size), mat);
+            right.position.set(size/2 - thickness/2, height/2, 0);
+
+            const front = new THREE.Mesh(new THREE.BoxGeometry(size - thickness*2, height, thickness), mat);
+            front.position.set(0, height/2, size/2 - thickness/2);
+
+            const back = new THREE.Mesh(new THREE.BoxGeometry(size - thickness*2, height, thickness), mat);
+            back.position.set(0, height/2, -size/2 + thickness/2);
+
+            packageGroup.add(bottom, left, right, front, back);
+            scene.add(packageGroup);
+        }
+
+        function buildVerity() {
+            verityContainer = new THREE.Group();
+            verityContainer.visible = false;
+
+            faceTextureClosed = generateVerityFace(false);
+            faceTextureOpen = generateVerityFace(true);
+
+            const normalMat = new THREE.MeshStandardMaterial({ map: faceTextureClosed, roughness: 0.4 });
+            verityNormal = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 32), normalMat);
+            verityNormal.rotation.y = -Math.PI / 2;
+            verityNormal.castShadow = true;
+            verityContainer.add(verityNormal);
+            scene.add(verityContainer);
+        }
+
+        function spawnBoxFromSky() {
+            // Spawn 1.5m in front of the camera, slightly elevated (not above head)
+            const camDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            camDir.y = 0; 
+            camDir.normalize();
+            
+            packageGroup.position.copy(camera.position).add(camDir.multiplyScalar(1.5));
+            packageGroup.position.y = camera.position.y + 0.5; 
+            
+            packageGroup.visible = true;
+            boxState = 'THROWN'; // Engage drop physics
+            boxVelocity.set(0, -2, 0); // Drop straight down
+        }
+
+        // --- SPATIAL MAPPING (LIVE PLANES) ---
+        function updateSpatialGrid(pos) {
+            const resolution = 5; 
+            const x = Math.round(pos.x * resolution);
+            const z = Math.round(pos.z * resolution);
+            const key = `${x},${z}`;
+            
+            const existingHeight = heightMap.get(key) || -999;
+            if (pos.y > existingHeight) heightMap.set(key, pos.y);
+            if (pos.y > currentFloorY) currentFloorY = pos.y; 
+        }
+
+        function getScannedHeightAt(worldPos) {
+            const resolution = 5;
+            const x = Math.round(worldPos.x * resolution);
+            const z = Math.round(worldPos.z * resolution);
+            
+            if (heightMap.has(`${x},${z}`)) return heightMap.get(`${x},${z}`);
+            
+            let maxFound = -999;
+            for(let dx = -1; dx <= 1; dx++) {
+                for(let dz = -1; dz <= 1; dz++) {
+                    const nk = `${x+dx},${z+dz}`;
+                    if(heightMap.has(nk)) maxFound = Math.max(maxFound, heightMap.get(nk));
+                }
+            }
+            return (maxFound !== -999) ? maxFound : currentFloorY;
+        }
+
+        // --- INTERACTION & PHYSICS ---
+        function setupXRInputs() {
+            for (let i = 0; i < 2; i++) {
+                const controller = renderer.xr.getController(i);
+                scene.add(controller);
+                controllers.push(controller);
+
+                const line = new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-1)]), 
+                    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 })
+                );
+                line.scale.z = 5;
+                controller.add(line);
+
+                const sourceId = `controller${i}`;
+                controller.addEventListener('selectstart', () => {
+                    const tempMatrix = new THREE.Matrix4().identity().extractRotation(controller.matrixWorld);
+                    raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+                    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+                    tryGrab(sourceId, raycaster.ray.origin, raycaster);
+
+                    // Shoot imaginative energy blast if nothing was grabbed!
+                    if (!grabbers[sourceId].active && performance.now() - grabbers[sourceId].lastShot > 300) {
+                        shootEnergyBlast(raycaster.ray.origin, raycaster.ray.direction);
+                        grabbers[sourceId].lastShot = performance.now();
+                    }
+                });
+                controller.addEventListener('selectend', () => releaseGrab(sourceId));
+
+                const hand = renderer.xr.getHand(i);
+                scene.add(hand);
+                hands.push(hand);
+            }
+        }
+
+        function shootEnergyBlast(position, direction) {
+            const blastGeo = new THREE.SphereGeometry(0.03, 8, 8);
+            const blastMat = new THREE.MeshBasicMaterial({ color: 0x00ffff }); // Glowing Blue
+            const mesh = new THREE.Mesh(blastGeo, blastMat);
+            mesh.position.copy(position);
+            scene.add(mesh);
+            
+            energyBlasts.push({
+                mesh: mesh,
+                velocity: direction.clone().multiplyScalar(6.0), // Fast speed
+                age: 0
+            });
+        }
+
+        function updateGrabberVelocities(sourceId, worldPos, delta) {
+            const grabber = grabbers[sourceId];
+            grabber.currentPos.copy(worldPos);
+            grabber.velocity.subVectors(worldPos, grabber.prevPos).divideScalar(delta);
+            if(grabber.velocity.length() > 15) grabber.velocity.normalize().multiplyScalar(15);
+            grabber.prevPos.copy(worldPos);
+        }
+
+        function getIntersectedType(ray) {
+            const verityHits = ray.intersectObject(verityContainer, true);
+            if (verityState !== 'HIDDEN' && verityHits.length > 0) return 'verity';
+            return null;
+        }
+
+        function tryGrab(sourceId, worldPos, ray = null) {
+            let hitType = null;
+            if (ray) {
+                hitType = getIntersectedType(ray);
+            } else {
+                const verityP = verityContainer.getWorldPosition(new THREE.Vector3());
+                if (verityState !== 'HIDDEN' && worldPos.distanceTo(verityP) < 0.20) hitType = 'verity';
+            }
+
+            if (hitType === 'verity' && !verityGrabbedBy) {
+                grabbers[sourceId].active = true;
+                grabbers[sourceId].object = hitType;
+                verityGrabbedBy = sourceId;
+                verityState = 'GRABBED';
+            }
+        }
+
+        function releaseGrab(sourceId) {
+            if (!grabbers[sourceId].active) return;
+            if (verityGrabbedBy === sourceId) {
+                verityGrabbedBy = null;
+                verityState = 'THROWN';
+                throwVelocity.copy(grabbers[sourceId].velocity);
+            }
+            grabbers[sourceId].active = false;
+            grabbers[sourceId].object = null;
+        }
+
+        function getJointPos(frame, inputSource, jointName, refSpace) {
+            const joint = inputSource.hand.get(jointName);
+            if (joint) {
+                const pose = frame.getJointPose(joint, refSpace);
+                if (pose) return new THREE.Vector3(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+            }
+            return null;
+        }
+
+        function pollHandGestures(frame, delta) {
+            const refSpace = renderer.xr.getReferenceSpace();
+            
+            hands.forEach((hand, index) => {
+                const inputSource = renderer.xr.getSession().inputSources[index];
+                if (!inputSource || !inputSource.hand) return;
+
+                const thumb = getJointPos(frame, inputSource, 'thumb-tip', refSpace);
+                const indexTip = getJointPos(frame, inputSource, 'index-finger-tip', refSpace);
+                const wrist = getJointPos(frame, inputSource, 'wrist', refSpace);
+                
+                if (thumb && indexTip && wrist) {
+                    const sourceId = `hand${index}`;
+                    const dist = thumb.distanceTo(indexTip);
+                    const isPinching = dist < 0.035; 
+                    const pinchPos = thumb.clone().lerp(indexTip, 0.5); 
+                    
+                    updateGrabberVelocities(sourceId, pinchPos, delta);
+
+                    const grabber = grabbers[sourceId];
+                    if (isPinching && !grabber.active) {
+                        tryGrab(sourceId, pinchPos, null);
+                        
+                        // If we didn't grab anything, shoot an energy blast!
+                        if (!grabber.active && performance.now() - grabber.lastShot > 300) {
+                            const aimDir = new THREE.Vector3().subVectors(indexTip, wrist).normalize();
+                            shootEnergyBlast(indexTip, aimDir);
+                            grabber.lastShot = performance.now();
+                        }
+                    } else if (!isPinching && grabber.active) {
+                        releaseGrab(sourceId);
+                    }
+                }
+            });
+        }
+
+        function triggerVerityJump() {
+            verityHasJumped = true;
+            verityState = 'JUMPING';
+            verityContainer.visible = true;
+            
+            // Pop out arc towards user
+            const userPos = new THREE.Vector3();
+            camera.getWorldPosition(userPos);
+            const dir = new THREE.Vector3().subVectors(userPos, verityContainer.position).normalize();
+            jumpVelocity.set(dir.x * 1.5, 4.0, dir.z * 1.5);
+        }
+
+        // --- GEMINI AI & TTS ---
+        function setupSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return;
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = false;
+
+            recognition.onresult = (event) => {
+                if (isSpeaking) return;
+                const last = event.results.length - 1;
+                const transcript = event.results[last][0].transcript.trim();
+                
+                if (transcript.length > 5 && (verityState === 'IDLE' || verityState === 'GRABBED')) {
+                    askGemini(transcript);
+                }
+            };
+
+            recognition.onend = () => { if (isListening) recognition.start(); };
+        }
+
+        async function askGemini(question) {
+            isSpeaking = true;
+            playVoice("Thinking...");
+            
+            const apiKey = ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: question }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: { parts: [{ text: "You are Verity, a slightly quirky, friendly augmented reality floating box companion. Answer with very short, one to two sentence responses." }] }
+            };
+
+            try {
+                const res = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const data = await res.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                playVoice(text || "I couldn't find an answer to that right now.");
+            } catch (err) {
+                console.error(err);
+                playVoice("Ah, my brain just disconnected.");
+            }
+        }
+
+        function playVoice(text) {
+            isSpeaking = true;
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const msg = new SpeechSynthesisUtterance(text);
+                msg.pitch = 1.3; msg.rate = 1.05;
+                msg.onend = () => { isSpeaking = false; verityNormal.material.map = faceTextureClosed; };
+                
+                // Extra failsafe to try and force voices to load if glitching
+                const voices = window.speechSynthesis.getVoices();
+                if (voices.length > 0) msg.voice = voices[0];
+                
+                window.speechSynthesis.speak(msg);
+            } else {
+                isSpeaking = false;
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- MAIN RENDER LOOP ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            renderer.setAnimationLoop((timestamp, frame) => {
+                const delta = Math.min(clock.getDelta(), 0.05); // Cap to prevent physics blowouts
+
+                if (frame) {
+                    const session = renderer.xr.getSession();
+                    const refSpace = renderer.xr.getReferenceSpace();
+
+                    // Continuous Spatial Scanning
+                    if (!hitTestSourceRequested) {
+                        session.requestReferenceSpace('viewer').then(space => {
+                            session.requestHitTestSource({ space: space }).then(source => hitTestSource = source);
+                        });
+                        hitTestSourceRequested = true;
+                    }
+                    
+                    if (hitTestSource) {
+                        const hitTestResults = frame.getHitTestResults(hitTestSource);
+                        if (hitTestResults.length > 0) {
+                            const pose = hitTestResults[0].getPose(refSpace);
+                            updateSpatialGrid(pose.transform.position);
+                        }
+                    }
+
+                    // Drop box after 3 seconds in AR
+                    if (sessionActive && !isBoxPlaced) {
+                        spawnTimer += delta;
+                        if (spawnTimer > 3.0) {
+                            spawnBoxFromSky();
+                            isBoxPlaced = true;
+                            
+                            if (recognition && !isListening) {
+                                recognition.start();
+                                isListening = true;
+                            }
+                        }
+                    }
+
+                    pollHandGestures(frame, delta);
+                    controllers.forEach((ctrl, i) => {
+                        const pos = new THREE.Vector3().setFromMatrixPosition(ctrl.matrixWorld);
+                        updateGrabberVelocities(`controller${i}`, pos, delta);
+                    });
+                }
+
+                // Update Energy Blasts (Finger Guns)
+                for (let i = energyBlasts.length - 1; i >= 0; i--) {
+                    const blast = energyBlasts[i];
+                    
+                    // Simple Gravity curve for blasts
+                    blast.velocity.y += (GRAVITY * 0.2) * delta;
+                    blast.mesh.position.addScaledVector(blast.velocity, delta);
+                    blast.age += delta;
+
+                    // Floor Collision
+                    const fh = getScannedHeightAt(blast.mesh.position);
+                    if (blast.mesh.position.y <= fh + 0.03) {
+                        // Bounce!
+                        blast.mesh.position.y = fh + 0.03;
+                        blast.velocity.y *= -0.8;
+                    }
+
+                    // Remove after 3 seconds
+                    if (blast.age > 3.0) {
+                        scene.remove(blast.mesh);
+                        energyBlasts.splice(i, 1);
+                    }
+                }
+
+                // Box Dropping Physics
+                if (boxState === 'THROWN') {
+                    boxVelocity.y += GRAVITY * delta;
+                    packageGroup.position.addScaledVector(boxVelocity, delta);
+                    packageGroup.rotation.x += boxVelocity.z * delta * 0.5;
+                    packageGroup.rotation.z -= boxVelocity.x * delta * 0.5;
+
+                    const fHeight = getScannedHeightAt(packageGroup.position);
+                    if (packageGroup.position.y <= fHeight + 0.15) { 
+                        // Box hit the floor! Make it vanish and trigger Verity
+                        packageGroup.visible = false;
+                        boxState = 'HIDDEN';
+                        
+                        verityContainer.position.copy(packageGroup.position);
+                        triggerVerityJump();
+                    }
+                }
+
+                // Verity Logic & Physics
+                if (verityState === 'JUMPING') {
+                    jumpVelocity.y += GRAVITY * delta;
+                    verityContainer.position.addScaledVector(jumpVelocity, delta);
+                    verityContainer.rotation.x += 10 * delta;
+
+                    const fHeight = getScannedHeightAt(verityContainer.position);
+                    if (verityContainer.position.y <= fHeight + 0.15) {
+                        verityContainer.position.y = fHeight + 0.15;
+                        jumpVelocity.y *= -0.6; jumpVelocity.x *= 0.8; jumpVelocity.z *= 0.8;
+                        
+                        if (Math.abs(jumpVelocity.y) < 0.5 && jumpVelocity.lengthSq() < 1.0) {
+                            verityState = 'IDLE';
+                            verityContainer.rotation.set(0, 0, 0); 
+                            setTimeout(() => { playVoice("Hello! I am Verity! Do you have a question?"); }, 200);
+                        }
+                    }
+                }
+
+                if (verityState === 'GRABBED' && verityGrabbedBy) {
+                    verityContainer.position.copy(grabbers[verityGrabbedBy].currentPos);
+                }
+
+                if (verityState === 'THROWN') {
+                    throwVelocity.y += GRAVITY * delta;
+                    verityContainer.position.addScaledVector(throwVelocity, delta);
+                    verityContainer.rotation.x += throwVelocity.z * delta * 2;
+                    verityContainer.rotation.z -= throwVelocity.x * delta * 2;
+
+                    const fHeight = getScannedHeightAt(verityContainer.position);
+                    if (verityContainer.position.y <= fHeight + 0.15) {
+                        verityContainer.position.y = fHeight + 0.15;
+                        throwVelocity.y *= -0.5; throwVelocity.x *= 0.7; throwVelocity.z *= 0.7;
+                        
+                        if (Math.abs(throwVelocity.y) < 0.2 && throwVelocity.lengthSq() < 0.3) {
+                            verityState = 'IDLE';
+                            throwVelocity.set(0,0,0);
+                        }
+                    }
+                }
+
+                if (verityState === 'IDLE') {
+                    const camPos = new THREE.Vector3();
+                    camera.getWorldPosition(camPos);
+                    const target = new THREE.Vector3(camPos.x, verityContainer.position.y, camPos.z);
+                    const currentRot = verityContainer.quaternion.clone();
+                    verityContainer.lookAt(target);
+                    const targetRot = verityContainer.quaternion.clone();
+                    verityContainer.quaternion.copy(currentRot).slerp(targetRot, delta * 3);
+                }
+
+                if (isSpeaking) {
+                    lipSyncTimer += delta;
+                    if (lipSyncTimer > 0.12 + Math.random() * 0.1) {
+                        lipSyncTimer = 0;
+                        verityNormal.material.map = (verityNormal.material.map === faceTextureClosed) ? faceTextureOpen : faceTextureClosed;
+                    }
+                } else if (verityNormal.material.map !== faceTextureClosed) {
+                    verityNormal.material.map = faceTextureClosed;
+                }
+
+                renderer.render(scene, camera);
+            });
+        }
+    </script>
+</body>
+</html>
+                scene.add(xrLight);
+                if (xrLight.environment) scene.environment = xrLight.environment;
+                ambient.intensity = 0.1; // dim default lights when estimation is active
+                dirLight.intensity = 0.1;
+            });
+            xrLight.addEventListener('estimationend', () => {
+                scene.remove(xrLight);
+                scene.environment = null;
+                ambient.intensity = 0.4;
+                dirLight.intensity = 1.2;
+            });
+
+            // 3. WebXR Setup (Hit Test + Hands + Controllers + Light Estimation)
+            document.body.appendChild(ARButton.createButton(renderer, {
+                requiredFeatures: ['local-floor', 'hit-test'],
+                optionalFeatures: ['hand-tracking', 'light-estimation']
+            }));
+
+            setupXRInputs();
+            setupSpeechRecognition();
+            
+            // 4. Build Assets
+            buildPackage();
+            buildVerity();
+
+            // Spawn Box Initial Position (Floating in front, will snap to floor if hit-test finds one)
+            packageGroup.position.set(0, 1.0, -1.0);
+            
+            // Fallback: If no floor detected within 3 seconds, lock the box where it is.
+            setTimeout(() => {
+                if (!isBoxPlaced) {
+                    isBoxPlaced = true;
+                    packageGroup.visible = true;
+                }
+            }, 3000);
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function setupXRInputs() {
+            const controllerModelFactory = new XRControllerModelFactory();
+            const handModelFactory = new XRHandModelFactory();
+
+            for (let i = 0; i < 2; i++) {
+                // Controller logic
+                const controller = renderer.xr.getController(i);
+                scene.add(controller);
+                controllers.push(controller);
+
+                // Add pointer line to controller
+                const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
+                const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
+                line.name = 'line';
+                line.scale.z = 5;
+                controller.add(line);
+
+                // Grip model
+                const grip = renderer.xr.getControllerGrip(i);
+                grip.add(controllerModelFactory.createControllerModel(grip));
+                scene.add(grip);
+                grips.push(grip);
+
+                // Controller Events (Trigger)
+                controller.addEventListener('selectstart', () => onGrabStart(`controller${i}`, controller));
+                controller.addEventListener('selectend', () => onGrabEnd(`controller${i}`));
+
+                // Hand Tracking Logic (Data only, visual meshes disabled)
+                const hand = renderer.xr.getHand(i);
+                // Intentionally NOT adding the visible hand model to keep hands invisible
+                scene.add(hand);
+                hands.push(hand);
+
+                // Poll hands for pinching manually in the render loop
+            }
+            audioElem = document.getElementById('verityVoice');
+        }
+
+        // --- SPEECH & GEMINI API ---
+        function setupSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return;
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = (event) => {
+                if (isSpeaking) return; // Don't listen to itself
+                const last = event.results.length - 1;
+                const transcript = event.results[last][0].transcript.trim();
+                
+                if (transcript.length > 5 && verityState === 'IDLE') {
+                    playVoice("Let me look that up...");
+                    askGemini(transcript);
+                }
+            };
+
+            recognition.onend = () => {
+                if (isListening) recognition.start(); // auto-restart if still supposed to be listening
+            };
+        }
+
+        async function askGemini(question) {
+            isSpeaking = true; // Prevent interrupting while fetching
+            const apiKey = ""; // Canvas handles this
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: `Answer this query briefly and conversationally as if you are a helpful floating virtual assistant named Verity: ${question}` }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: { parts: [{ text: "You are Verity, a slightly quirky, friendly augmented reality box monster. Give very short, one to two sentence answers." }] }
+            };
+
+            try {
+                const res = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const data = await res.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    playVoice(text);
+                } else {
+                    playVoice("I couldn't find the answer to that.");
+                }
+            } catch (err) {
+                console.error(err);
+                playVoice("My brain disconnected from the internet.");
+            }
+        }
+
+        // --- PROCEDURAL TEXTURES ---
+        function generateCardboardTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#9e7a53'; // Base brown
+            ctx.fillRect(0,0,256,256);
+            // Noise
+            for(let i=0; i<4000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
+                ctx.fillRect(Math.random()*256, Math.random()*256, 2, 2);
+            }
+            // Tape
+            ctx.fillStyle = 'rgba(200, 180, 150, 0.4)';
+            ctx.fillRect(100, 0, 56, 256);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function generateVerityFace(mouthOpen = false) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#FFD700'; // Game accurate yellow
+            ctx.fillRect(0, 0, 512, 512);
+
+            // Eyes
+            ctx.fillStyle = '#000000';
+            ctx.beginPath(); ctx.arc(160, 220, 50, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(352, 220, 50, 0, Math.PI * 2); ctx.fill();
+
+            // Mouth
+            ctx.fillStyle = mouthOpen ? '#000000' : '#FFFFFF';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 8;
+            
+            ctx.beginPath();
+            if (mouthOpen) {
+                // Wide open screaming/talking mouth
+                ctx.ellipse(256, 380, 120, 60, 0, 0, Math.PI * 2);
+            } else {
+                // Creepy smile
+                ctx.moveTo(100, 340);
+                ctx.quadraticCurveTo(256, 460, 412, 340);
+                ctx.quadraticCurveTo(256, 380, 100, 340);
+            }
+            ctx.fill();
+            ctx.stroke();
+
+            // Teeth lines only if closed
+            if (!mouthOpen) {
+                ctx.beginPath();
+                for(let i=1; i<8; i++) {
+                    let x = 100 + i * (312 / 8);
+                    ctx.moveTo(x, 345 + (i>2 && i<6 ? 20 : 0));
+                    ctx.lineTo(x, 410 + (i>2 && i<6 ? 20 : 0));
+                }
+                ctx.stroke();
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.center.set(0.5, 0.5);
+            tex.rotation = Math.PI; // Correct orientation for sphere mapping
+            return tex;
+        }
+
+        function generateFleshTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#4a3b22'; // Dark sickly brown/yellow
+            ctx.fillRect(0,0,256,256);
+            for(let i=0; i<3000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? 'rgba(30,20,10,0.5)' : 'rgba(100,80,50,0.5)';
+                ctx.fillRect(Math.random()*256, Math.random()*256, Math.random()*4, Math.random()*4);
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // --- ASSET BUILDING ---
+        function buildPackage() {
+            packageGroup = new THREE.Group();
+            packageGroup.visible = false; // Hidden until hit-test places it
+            
+            const mat = new THREE.MeshStandardMaterial({ map: generateCardboardTexture(), roughness: 0.9 });
+            
+            packageBase = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.4), mat);
+            packageBase.position.y = 0.15;
+            packageBase.castShadow = true;
+            packageBase.receiveShadow = true;
+            packageGroup.add(packageBase);
+
+            packageLid = new THREE.Group();
+            packageLid.position.set(0, 0.3, -0.2); // Hinge at back
+            const lidMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.02, 0.42), mat);
+            lidMesh.position.set(0, 0.01, 0.2);
+            lidMesh.castShadow = true;
+            lidMesh.receiveShadow = true;
+            packageLid.add(lidMesh);
+            
+            packageGroup.add(packageLid);
+            scene.add(packageGroup);
+        }
+
+        function buildVerity() {
+            verityContainer = new THREE.Group();
+            verityContainer.visible = false;
+
+            faceTextureClosed = generateVerityFace(false);
+            faceTextureOpen = generateVerityFace(true);
+
+            // Normal Ball
+            const normalMat = new THREE.MeshStandardMaterial({ map: faceTextureClosed, roughness: 0.4 });
+            verityNormal = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 32), normalMat);
+            verityNormal.rotation.y = -Math.PI / 2;
+            verityNormal.castShadow = true;
+            verityNormal.receiveShadow = true;
+            verityContainer.add(verityNormal);
+            
+            scene.add(verityContainer);
+        }
+
+        // --- INTERACTION & PHYSICS LOGIC ---
+        function playVoice(text) {
+            isSpeaking = true;
+            if (audioElem && audioElem.src && audioElem.src !== "") {
+                // Force TTS for dynamic responses instead of the placeholder sound
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const msg = new SpeechSynthesisUtterance(text);
+                    msg.pitch = 1.6; msg.rate = 1.1;
+                    msg.onend = () => { isSpeaking = false; verityNormal.material.map = faceTextureClosed; };
+                    window.speechSynthesis.speak(msg);
+                } else {
+                    isSpeaking = false;
+                }
+            }
+        }
+
+        function triggerVerityJump() {
+            boxState = 'OPEN';
+            verityState = 'JUMPING';
+            
+            verityContainer.position.copy(packageGroup.position);
+            verityContainer.position.y += 0.2; // Start inside box
+            verityContainer.visible = true;
+
+            // Calculate jump physics towards user
+            const userPos = new THREE.Vector3();
+            camera.getWorldPosition(userPos);
+            
+            // Jump arc: Up and slightly towards the camera (close to box)
+            const direction = new THREE.Vector3().subVectors(userPos, verityContainer.position).normalize();
+            jumpVelocity.set(direction.x * 1.0, 3.5, direction.z * 1.0);
+        }
+
+        function resetExperience() {
+            boxState = 'IDLE';
+            verityState = 'HIDDEN';
+            isBoxPlaced = false;
+            hitTestSourceRequested = false;
+            
+            packageGroup.visible = false;
+            verityContainer.visible = false;
+            packageLid.rotation.x = 0; // Close lid
+            
+            if (audioElem) {
+                audioElem.pause();
+                audioElem.currentTime = 0;
+            }
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            isSpeaking = false;
+            verityNormal.material.map = faceTextureClosed;
+        }
+
+        function onGrabStart(sourceKey, controllerOrHand) {
+            // Controller pointing raycast logic
+            if (sourceKey.startsWith('controller')) {
+                const tempMatrix = new THREE.Matrix4();
+                tempMatrix.identity().extractRotation(controllerOrHand.matrixWorld);
+                raycaster.ray.origin.setFromMatrixPosition(controllerOrHand.matrixWorld);
+                raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+                // Check Lid
+                if (boxState === 'IDLE') {
+                    const intersects = raycaster.intersectObject(packageLid, true);
+                    if (intersects.length > 0) {
+                        boxState = 'OPENING';
+                        return;
+                    }
+                }
+                // Check Verity
+                if (verityState === 'IDLE' || verityState === 'JUMPING') {
+                    const intersects = raycaster.intersectObject(verityNormal, true);
+                    if (intersects.length > 0) {
+                        grabbedBy = sourceKey;
+                        verityState = 'GRABBED';
+                    }
+                }
+            } else {
+                // Hand pinch logic (handled in animate loop, this is just for state)
+                grabbedBy = sourceKey;
+                verityState = 'GRABBED';
+            }
+        }
+
+        function onGrabEnd(sourceKey) {
+            if (grabbedBy === sourceKey) {
+                grabbedBy = null;
+                verityState = 'THROWN';
+            }
+        }
+
+        function getJointPos(frame, inputSource, jointName, refSpace) {
+            const joint = inputSource.hand.get(jointName);
+            if (joint) {
+                const pose = frame.getJointPose(joint, refSpace);
+                if (pose) return new THREE.Vector3(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+            }
+            return null;
+        }
+
+        function pollHandGestures(frame) {
+            const refSpace = renderer.xr.getReferenceSpace();
+            const now = performance.now();
+            
+            hands.forEach((hand, index) => {
+                const inputSource = renderer.xr.getSession().inputSources[index];
+                if (!inputSource || !inputSource.hand) return;
+
+                const wrist = getJointPos(frame, inputSource, 'wrist', refSpace);
+                const indexTip = getJointPos(frame, inputSource, 'index-finger-tip', refSpace);
+                const middleTip = getJointPos(frame, inputSource, 'middle-finger-tip', refSpace);
+                const ringTip = getJointPos(frame, inputSource, 'ring-finger-tip', refSpace);
+                const pinkyTip = getJointPos(frame, inputSource, 'pinky-finger-tip', refSpace);
+                
+                if (wrist && indexTip && middleTip && ringTip && pinkyTip) {
+                    const handKey = `hand${index}`;
+                    const state = handStates[index];
+
+                    // Twitch / Recoil velocity logic
+                    const deltaY = wrist.y - state.prevWristY;
+                    const wristVelocityY = deltaY / 0.016; // approx 60fps delta
+                    state.prevWristY = wrist.y;
+
+                    // Distances from wrist to tips to determine curled vs extended
+                    const dIndex = wrist.distanceTo(indexTip);
+                    const dMiddle = wrist.distanceTo(middleTip);
+                    const dRing = wrist.distanceTo(ringTip);
+                    const dPinky = wrist.distanceTo(pinkyTip);
+
+                    // Thresholds (approximate distances for an adult hand in meters)
+                    const isIndexExtended = dIndex > 0.12;
+                    const isMiddleCurled = dMiddle < 0.10;
+                    const isRingCurled = dRing < 0.10;
+                    const isPinkyCurled = dPinky < 0.10;
+
+                    // --- FULL HAND GRAB DETECT ---
+                    // All fingers curled
+                    const isGrabbing = !isIndexExtended && isMiddleCurled && isRingCurled && isPinkyCurled;
+                    
+                    if (isGrabbing && !grabbedBy) {
+                        // Check Box Lid
+                        if (boxState === 'IDLE' && wrist.distanceTo(packageLid.getWorldPosition(new THREE.Vector3())) < 0.25) {
+                            boxState = 'OPENING';
+                        }
+                        // Check Verity
+                        else if ((verityState === 'IDLE' || verityState === 'JUMPING') && wrist.distanceTo(verityContainer.position) < 0.25) {
+                            onGrabStart(handKey, hand);
+                        }
+                    } else if (!isGrabbing && grabbedBy === handKey) {
+                        onGrabEnd(handKey);
+                    }
+
+                    // --- FINGER GUN DETECT & SHOOT ---
+                    // Index extended, others curled
+                    const isGun = isIndexExtended && isMiddleCurled && isRingCurled && isPinkyCurled;
+                    
+                    if (isGun && wristVelocityY > 1.0 && (now - state.lastFireTime > 300)) {
+                        // Rapid upward twitch detected while in gun pose -> FIRE
+                        state.lastFireTime = now;
+                        
+                        // Calculate direction from wrist to index tip
+                        const fireDir = new THREE.Vector3().subVectors(indexTip, wrist).normalize();
+                        
+                        // Create Bullet
+                        const bulletMesh = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.015, 8, 8),
+                            new THREE.MeshBasicMaterial({color: 0xffea00})
+                        );
+                        bulletMesh.position.copy(indexTip);
+                        scene.add(bulletMesh);
+                        bullets.push({
+                            mesh: bulletMesh,
+                            vel: fireDir.multiplyScalar(8.0), // Speed
+                            life: 2.0 // Seconds to live
+                        });
+                    }
+                }
+            });
+        }
+
+        function pollControllerGamepad() {
+            // Allow opening box or grabbing Verity via "A" or "X" button
+            // Double click "B" or "Y" button to reset
+            const session = renderer.xr.getSession();
+            if (!session) return;
+            const now = performance.now();
+
+            session.inputSources.forEach((source, index) => {
+                if (source.gamepad) {
+                    const aPressed = source.gamepad.buttons[4]?.pressed || source.gamepad.buttons[0]?.pressed; // Triggers/A
+                    const bPressed = source.gamepad.buttons[5]?.pressed || source.gamepad.buttons[1]?.pressed; // B/Y
+                    
+                    if (aPressed) {
+                        onGrabStart(`controller${index}`, controllers[index]);
+                    }
+                    
+                    const state = controllerStates[index];
+                    if (bPressed) {
+                        if (!state.bWasPressed) {
+                            if (now - state.lastBPressTime < 400) {
+                                // Double click detected
+                                resetExperience();
+                                state.lastBPressTime = 0; // consume click
+                            } else {
+                                state.lastBPressTime = now;
+                            }
+                        }
+                        state.bWasPressed = true;
+                    } else {
+                        state.bWasPressed = false;
+                    }
+                }
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- ANIMATION & RENDER LOOP ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            renderer.setAnimationLoop((timestamp, frame) => {
+                const delta = Math.min(clock.getDelta(), 0.1); // Cap delta to prevent physics explosions
+
+                // 1. WebXR Hit Testing (Floor placement)
+                if (frame && !isBoxPlaced) {
+                    const session = renderer.xr.getSession();
+                    if (!hitTestSourceRequested) {
+                        session.requestReferenceSpace('viewer').then(refSpace => {
+                            session.requestHitTestSource({ space: refSpace }).then(source => {
+                                hitTestSource = source;
+                            });
+                        });
+                        hitTestSourceRequested = true;
+                    }
+                    if (hitTestSource) {
+                        const hitTestResults = frame.getHitTestResults(hitTestSource);
+                        if (hitTestResults.length > 0) {
+                            const pose = hitTestResults[0].getPose(renderer.xr.getReferenceSpace());
+                            const camPos = new THREE.Vector3();
+                            camera.getWorldPosition(camPos);
+                            
+                            // Ground detection fix: Prevent spawning on roof/walls by ensuring hit is below camera
+                            if (pose.transform.position.y < camPos.y - 0.5) {
+                                currentFloorY = pose.transform.position.y;
+                                packageGroup.position.set(pose.transform.position.x, currentFloorY, pose.transform.position.z);
+                                
+                                // Position shadow plane
+                                shadowPlane.position.y = currentFloorY + 0.001; // slightly above to prevent z-fighting
+                                shadowPlane.visible = true;
+                                
+                                // Adjust facing user
+                                packageGroup.lookAt(camPos.x, currentFloorY, camPos.z);
+                                
+                                packageGroup.visible = true;
+                                isBoxPlaced = true; // Lock position
+
+                                // Start listening for speech once box is placed
+                                if (recognition && !isListening) {
+                                    recognition.start();
+                                    isListening = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2. XR Inputs
+                if (frame) {
+                    pollHandGestures(frame);
+                    pollControllerGamepad();
+                }
+
+                // 3. Bullets Physics
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    const b = bullets[i];
+                    b.mesh.position.addScaledVector(b.vel, delta);
+                    b.life -= delta;
+                    if (b.life <= 0) {
+                        scene.remove(b.mesh);
+                        bullets.splice(i, 1);
+                    }
+                }
+
+                // 4. Animations & Logic
+                
+                // Lip Sync Textures
+                if (isSpeaking) {
+                    lipSyncTimer += delta;
+                    if (lipSyncTimer > 0.1) {
+                        lipSyncTimer = 0;
+                        verityNormal.material.map = (Math.random() > 0.5) ? faceTextureOpen : faceTextureClosed;
+                    }
+                }
+
+                // Box Opening
+                if (boxState === 'OPENING') {
+                    if (packageLid.rotation.x > -Math.PI * 0.7) {
+                        packageLid.rotation.x -= delta * 4;
+                    } else {
+                        triggerVerityJump();
+                    }
+                }
+
+                // Verity Jumping out of box
+                if (verityState === 'JUMPING') {
+                    jumpVelocity.y += GRAVITY * delta;
+                    verityContainer.position.addScaledVector(jumpVelocity, delta);
+                    
+                    // Rotate wildly while jumping
+                    verityContainer.rotation.x += 10 * delta;
+                    verityContainer.rotation.y += 5 * delta;
+
+                    // Hit the floor
+                    const floorHeight = isBoxPlaced ? currentFloorY : FLOOR_Y;
+                    if (verityContainer.position.y <= floorHeight + 0.15) {
+                        verityContainer.position.y = floorHeight + 0.15;
+                        
+                        // Bounce mechanics
+                        jumpVelocity.y *= -0.6;
+                        jumpVelocity.x *= 0.8;
+                        jumpVelocity.z *= 0.8;
+                        
+                        // Settle
+                        if (Math.abs(jumpVelocity.y) < 0.5 && jumpVelocity.lengthSq() < 1.0) {
+                            verityState = 'IDLE';
+                            // Re-orient properly
+                            verityContainer.rotation.set(0, 0, 0); 
+                            const camPos = new THREE.Vector3();
+                            camera.getWorldPosition(camPos);
+                            const target = new THREE.Vector3(camPos.x, verityContainer.position.y, camPos.z);
+                            verityContainer.lookAt(target);
+                            
+                            setTimeout(() => { playVoice("Hello! I'm Verity! Please don't throw me."); }, 200);
+                        }
+                    }
+                }
+
+                // Verity Grabbed (Match hand/controller pos)
+                if (verityState === 'GRABBED' && grabbedBy) {
+                    let sourceObj;
+                    if (grabbedBy === 'controller0') sourceObj = controllers[0];
+                    if (grabbedBy === 'controller1') sourceObj = controllers[1];
+                    if (grabbedBy === 'hand0') sourceObj = hands[0];
+                    if (grabbedBy === 'hand1') sourceObj = hands[1];
+
+                    if (sourceObj) {
+                        const currentPos = new THREE.Vector3().setFromMatrixPosition(sourceObj.matrixWorld);
+                        verityContainer.position.copy(currentPos);
+                        
+                        // Calculate throw velocity based on frame-by-frame delta
+                        throwVelocity.subVectors(currentPos, previousGrabPos).divideScalar(delta);
+                        if(throwVelocity.length() > 15) throwVelocity.normalize().multiplyScalar(15);
+                        previousGrabPos.copy(currentPos);
+                    }
+                }
+
+                // Verity Thrown Physics
+                if (verityState === 'THROWN') {
+                    throwVelocity.y += GRAVITY * delta;
+                    verityContainer.position.addScaledVector(throwVelocity, delta);
+                    
+                    // Add rotational spin while flying
+                    verityContainer.rotation.x += throwVelocity.z * delta;
+                    verityContainer.rotation.z -= throwVelocity.x * delta;
+
+                    // Floor Collision
+                    const floorHeight = isBoxPlaced ? currentFloorY : FLOOR_Y;
+                    if (verityContainer.position.y <= floorHeight + 0.15) {
+                        verityContainer.position.y = floorHeight + 0.15;
+                        
+                        // Realistic friction and bounce
+                        throwVelocity.y *= -0.5;
+                        throwVelocity.x *= 0.6;
+                        throwVelocity.z *= 0.6;
+                        
+                        if (Math.abs(throwVelocity.y) < 0.2 && throwVelocity.lengthSq() < 0.3) {
+                            verityState = 'IDLE';
+                            throwVelocity.set(0,0,0);
+                            
+                            // Keep exact position where he landed, just look at the user
+                            const camPos = new THREE.Vector3();
+                            camera.getWorldPosition(camPos);
+                            const target = new THREE.Vector3(camPos.x, verityContainer.position.y, camPos.z);
+                            verityContainer.lookAt(target);
+                        }
+                    }
+                }
+
+                // Normal Idle Behavior
+                if (verityState === 'IDLE') {
+                    // Smoothly track the user with eyes from current rest position
+                    const camPos = new THREE.Vector3();
+                    camera.getWorldPosition(camPos);
+                    const target = new THREE.Vector3(camPos.x, verityContainer.position.y, camPos.z);
+                    
+                    const currentRot = verityContainer.quaternion.clone();
+                    verityContainer.lookAt(target);
+                    const targetRot = verityContainer.quaternion.clone();
+                    verityContainer.quaternion.copy(currentRot).slerp(targetRot, delta * 3);
+                }
+
+                renderer.render(scene, camera);
+            });
+        }
+    </script>
+</body>
+</html>
             text-align: center;
         }
 
